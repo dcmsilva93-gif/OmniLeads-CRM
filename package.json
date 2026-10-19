@@ -1,0 +1,24 @@
+{
+  "name": "omnileads-roar",
+  "version": "1.0.0",
+  "description": "OmniLeads CRM on Roar AI",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --env-file=.env server.js",
+    "test:ai": "node --env-file=.env test-ai.js",
+    "test:api": "node e2e-test.mjs",
+    "test:ui": "node browser-test.mjs"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "https-proxy-agent": "^7.0.5",
+    "openai": "4.73.1",
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
