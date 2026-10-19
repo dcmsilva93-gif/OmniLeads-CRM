@@ -1,0 +1,2712 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniLeads - Marketing CRM &amp; Pipeline</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+if (window.tailwind) tailwind.config = {
+  darkMode: 'class',
+  theme: { extend: { colors: { brand: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81' } } } }
+}
+</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- SheetJS: reads .xlsx, .xls, .xlsm, .ods, .csv, .tsv entirely in the browser -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- No backend config needed: this page is served by its own API on the same origin. -->
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .scroll-thin::-webkit-scrollbar { width: 6px; height: 8px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .dark .scroll-thin::-webkit-scrollbar-thumb { background: #475569; }
+  @keyframes slideIn { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .toast-animate { animation: slideIn .22s ease-out forwards; }
+  .lead-card { cursor: grab; }
+  .lead-card:active { cursor: grabbing; }
+  .lead-card.dragging { opacity: .4; }
+  .col-drop { outline: 2px dashed #6366f1; outline-offset: -4px; background-color: rgba(99,102,241,.06); }
+  [draggable=true] { -webkit-user-drag: element; }
+  kbd { font-family: inherit; font-size: 10px; padding: 1px 5px; border-radius: 4px; border: 1px solid currentColor; opacity: .6; }
+</style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 h-full transition-colors duration-200">
+
+<div id="toast-container" class="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 items-end max-w-[90vw]"></div>
+
+<!-- LOGIN GATE -->
+<div id="auth-gate" class="fixed inset-0 z-[80] bg-slate-50 dark:bg-slate-900 hidden items-center justify-center p-4">
+  <div class="w-full max-w-sm">
+    <div class="flex items-center gap-3 mb-8 justify-center">
+      <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+        <i class="fa-solid fa-chart-line text-xl"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-xl tracking-tight text-slate-900 dark:text-white">OmniLeads</h1>
+        <p class="text-xs text-slate-400">Marketing CRM</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl p-6">
+      <h2 id="auth-title" class="font-bold text-base text-slate-900 dark:text-white mb-5">Sign in to your CRM</h2>
+      <form id="auth-form" onsubmit="signIn(event)" class="space-y-4">
+        <input type="hidden" id="auth-mode" value="signin">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Email</label>
+          <input type="email" id="auth-email" required autocomplete="email" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Password</label>
+          <input type="password" id="auth-password" required minlength="6" autocomplete="current-password" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+
+        <div id="auth-signup-fields" class="space-y-4 hidden">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Company name</label>
+            <input type="text" id="auth-company" placeholder="Your company" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Workspace ID <span class="font-normal text-slate-400">— only if a colleague invited you</span></label>
+            <input type="text" id="auth-invite" placeholder="Leave empty to start your own" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+        </div>
+
+        <p id="auth-error" class="text-xs text-rose-500"></p>
+        <button type="submit" id="auth-submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs rounded-xl shadow-sm">Sign in</button>
+      </form>
+      <p id="auth-switch" class="text-xs text-slate-400 mt-4 text-center"></p>
+    </div>
+    <p class="text-[11px] text-slate-400 text-center mt-5">Your pipeline syncs across every device you sign in from.</p>
+  </div>
+</div>
+<div id="sidebar-backdrop" onclick="closeMobileSidebar()" class="fixed inset-0 bg-slate-900/50 z-30 hidden md:hidden"></div>
+
+<div id="app-shell" class="flex h-screen overflow-hidden invisible">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col z-40 fixed md:static inset-y-0 left-0 -translate-x-full md:translate-x-0 transition-transform duration-200">
+    <div class="h-16 flex items-center px-5 border-b border-slate-200 dark:border-slate-700 justify-between">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white shadow-md shadow-brand-500/30">
+          <i class="fa-solid fa-chart-line text-lg"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 id="sidebar-crm-name" class="font-bold text-lg leading-tight tracking-tight truncate">OmniLeads</h1>
+          <span class="text-xs text-slate-400 font-medium">Marketing CRM</span>
+        </div>
+      </div>
+      <button onclick="closeMobileSidebar()" class="md:hidden text-slate-400 hover:text-slate-600 p-2"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <nav class="flex-1 px-4 py-5 space-y-1.5 overflow-y-auto scroll-thin">
+      <a href="#" onclick="switchTab('dashboard');return false;" id="nav-dashboard" class="nav-link flex items-center gap-3 px-3.5 py-3 rounded-xl font-medium text-sm transition-all">
+        <i class="fa-solid fa-house w-5 text-center"></i> Dashboard
+      </a>
+      <a href="#" onclick="switchTab('pipeline');return false;" id="nav-pipeline" class="nav-link flex items-center gap-3 px-3.5 py-3 rounded-xl font-medium text-sm transition-all">
+        <i class="fa-solid fa-table-columns w-5 text-center"></i> Leads Pipeline
+        <span id="nav-lead-count" class="ml-auto bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-xs px-2 py-0.5 rounded-full font-semibold">0</span>
+      </a>
+      <a href="#" onclick="switchTab('integrations');return false;" id="nav-integrations" class="nav-link flex items-center gap-3 px-3.5 py-3 rounded-xl font-medium text-sm transition-all">
+        <i class="fa-solid fa-plug w-5 text-center"></i> Integrations
+        <span id="integration-badge" class="ml-auto bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 text-xs px-2 py-0.5 rounded-full font-semibold">3 Active</span>
+      </a>
+      <a href="#" onclick="switchTab('qrcodes');return false;" id="nav-qrcodes" class="nav-link flex items-center gap-3 px-3.5 py-3 rounded-xl font-medium text-sm transition-all">
+        <i class="fa-brands fa-wpforms w-5 text-center"></i> Forms &amp; QR
+      </a>
+      <a href="#" onclick="switchTab('settings');return false;" id="nav-settings" class="nav-link flex items-center gap-3 px-3.5 py-3 rounded-xl font-medium text-sm transition-all">
+        <i class="fa-solid fa-gear w-5 text-center"></i> Settings
+      </a>
+    </nav>
+
+    <div class="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+      <div id="sync-status" class="text-[11px] font-medium text-slate-400 px-1"></div>
+      <div class="flex items-center gap-3 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+        <div id="user-initials" class="w-9 h-9 rounded-lg bg-brand-600 text-white flex items-center justify-center text-xs font-bold shrink-0">—</div>
+        <div class="overflow-hidden flex-1">
+          <p id="user-email" class="text-xs font-semibold truncate">Signed out</p>
+          <button onclick="signOut()" class="text-[10px] text-slate-400 hover:text-rose-500 truncate">Sign out</button>
+        </div>
+        <button onclick="toggleDarkMode()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg transition-colors" title="Toggle theme">
+          <i id="theme-icon" class="fa-solid fa-moon text-sm"></i>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <header class="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 sm:px-6 z-10 shrink-0">
+      <div class="flex items-center gap-3 min-w-0">
+        <button onclick="openMobileSidebar()" class="md:hidden text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 p-1"><i class="fa-solid fa-bars text-lg"></i></button>
+        <h2 id="page-title" class="font-bold text-lg sm:text-xl text-slate-900 dark:text-white truncate">Dashboard</h2>
+      </div>
+      <div class="flex items-center gap-2">
+        <button data-ai-only onclick="scoreAllLeads()" class="hidden bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-100 font-medium px-3 py-2 rounded-xl text-sm transition-all items-center gap-2 inline-flex" title="Score unscored open leads with AI">
+          <i class="fa-solid fa-wand-magic-sparkles text-brand-500"></i> <span class="hidden sm:inline">Score leads</span>
+        </button>
+        <button onclick="simulateIncomingLead()" class="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-100 font-medium px-3 py-2 rounded-xl text-sm transition-all flex items-center gap-2" title="Simulate an inbound ad lead">
+          <i class="fa-solid fa-bolt text-amber-500"></i> <span class="hidden sm:inline">Simulate sync</span>
+        </button>
+        <button onclick="openLeadModal()" class="bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm shadow-brand-500/20 transition-all flex items-center gap-2">
+          <i class="fa-solid fa-plus"></i> <span class="hidden sm:inline">Add lead</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto scroll-thin p-4 sm:p-6 bg-slate-50/60 dark:bg-slate-900/60">
+
+      <!-- DASHBOARD -->
+      <section id="tab-dashboard" class="space-y-6">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total leads</p>
+            <h3 id="stat-total-leads" class="text-2xl font-bold mt-1 text-slate-900 dark:text-white">0</h3>
+            <p id="stat-total-sub" class="text-xs text-slate-400 font-medium mt-1">0 open</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Open pipeline</p>
+            <h3 id="stat-open-value" class="text-2xl font-bold mt-1 text-slate-900 dark:text-white">$0</h3>
+            <p id="stat-open-sub" class="text-xs text-slate-400 font-medium mt-1">Avg $0 per deal</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Won revenue</p>
+            <h3 id="stat-won-value" class="text-2xl font-bold mt-1 text-emerald-600 dark:text-emerald-400">$0</h3>
+            <p id="stat-won-sub" class="text-xs text-slate-400 font-medium mt-1">0 deals won</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Win rate</p>
+            <h3 id="stat-winrate" class="text-2xl font-bold mt-1 text-slate-900 dark:text-white">—</h3>
+            <p id="stat-winrate-sub" class="text-xs text-slate-400 font-medium mt-1">Of closed deals</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm lg:col-span-2">
+            <div class="flex items-start justify-between mb-5 gap-4">
+              <div>
+                <h3 class="font-bold text-base text-slate-900 dark:text-white">Lead sources</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Where your current leads came from</p>
+              </div>
+              <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 whitespace-nowrap" id="source-total-chip">0 leads</span>
+            </div>
+            <div id="source-breakdown" class="space-y-4"></div>
+          </div>
+
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex flex-col">
+            <h3 class="font-bold text-base text-slate-900 dark:text-white mb-1">Stage breakdown</h3>
+            <p class="text-xs text-slate-400 mb-5">Click a stage to filter the pipeline</p>
+            <div id="stage-breakdown" class="space-y-2.5 flex-1"></div>
+            <button onclick="switchTab('pipeline')" class="w-full mt-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl transition-all">Open pipeline</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- PIPELINE -->
+      <section id="tab-pipeline" class="hidden space-y-4">
+        <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 min-w-0">
+            <div class="relative flex-1 sm:max-w-xs">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+              <input type="text" id="pipeline-search" oninput="renderPipeline()" placeholder="Search name, company, email…" class="w-full pl-10 pr-8 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hidden sm:block">/</kbd>
+            </div>
+            <select id="pipeline-filter-rep" onchange="renderPipeline()" class="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+            <select id="pipeline-filter-source" onchange="renderPipeline()" class="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+            <button onclick="clearFilters()" id="clear-filters-btn" class="hidden text-xs font-semibold text-brand-600 hover:text-brand-700 px-2 whitespace-nowrap">Clear</button>
+          </div>
+
+          <div class="flex items-center gap-2 justify-between lg:justify-end">
+            <div class="flex bg-slate-100 dark:bg-slate-700/60 p-1 rounded-xl">
+              <button onclick="setPipelineView('kanban')" id="btn-view-kanban" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all">Board</button>
+              <button onclick="setPipelineView('list')" id="btn-view-list" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all">List</button>
+            </div>
+            <button onclick="exportCSV()" class="px-3 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-100 rounded-xl text-xs font-medium flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-600">
+              <i class="fa-solid fa-file-csv"></i> <span class="hidden sm:inline">Export</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-slate-400 px-1 hidden sm:block"><i class="fa-solid fa-hand-pointer mr-1"></i> Drag cards between columns to change stage. Click a card to edit.</p>
+
+        <div id="pipeline-kanban-container" class="overflow-x-auto scroll-thin pb-4">
+          <div id="kanban-columns-wrapper" class="flex gap-4 items-start"></div>
+        </div>
+
+        <div id="pipeline-list-container" class="hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto scroll-thin">
+            <table class="w-full text-left border-collapse min-w-[760px]">
+              <thead>
+                <tr class="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <th class="p-4 cursor-pointer hover:text-slate-600" onclick="sortBy('name')">Lead <i class="fa-solid fa-sort text-[9px]"></i></th>
+                  <th class="p-4 cursor-pointer hover:text-slate-600" onclick="sortBy('company')">Company <i class="fa-solid fa-sort text-[9px]"></i></th>
+                  <th class="p-4 cursor-pointer hover:text-slate-600" onclick="sortBy('value')">Value <i class="fa-solid fa-sort text-[9px]"></i></th>
+                  <th class="p-4">Source</th>
+                  <th class="p-4">Stage</th>
+                  <th class="p-4 cursor-pointer hover:text-slate-600" onclick="sortBy('aiScore')">AI <i class="fa-solid fa-sort text-[9px]"></i></th>
+                  <th class="p-4">Owner</th>
+                  <th class="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="list-view-tbody" class="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- INTEGRATIONS -->
+      <section id="tab-integrations" class="hidden space-y-6">
+        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
+          <div class="flex items-start justify-between gap-4 mb-6">
+            <div>
+              <h3 class="font-bold text-base text-slate-900 dark:text-white mb-1">Channels &amp; connectors</h3>
+              <p class="text-xs text-slate-400">Add any platform you use. Each connector tags its leads with a source, so attribution stays clean.</p>
+            </div>
+            <button onclick="openIntegrationModal()" class="bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 whitespace-nowrap">
+              <i class="fa-solid fa-plus"></i> Add integration
+            </button>
+          </div>
+          <div id="integrations-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5"></div>
+
+          <!-- Manual spreadsheet import -->
+          <div class="mt-6 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-11 h-11 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 flex items-center justify-center text-lg"><i class="fa-solid fa-file-excel"></i></div>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900 dark:text-white">Import a spreadsheet</h4>
+                <p class="text-xs text-slate-400">Excel (.xlsx, .xls, .xlsm), OpenDocument (.ods), CSV or TSV — you'll map the columns before anything is added.</p>
+              </div>
+            </div>
+            <div class="flex flex-col sm:flex-row items-center gap-3 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 bg-white dark:bg-slate-800">
+              <input type="file" id="lead-file-upload" onchange="handleSpreadsheetFile()" accept=".csv,.tsv,.txt,.xlsx,.xls,.xlsm,.xlsb,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="text-xs text-slate-500 flex-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 dark:file:bg-emerald-900/50 dark:file:text-emerald-400">
+              <button onclick="handleSpreadsheetFile()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium shadow-sm w-full sm:w-auto whitespace-nowrap">Read file</button>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-2">Parsed in your browser — the file is never uploaded anywhere.</p>
+          </div>
+
+          <!-- Linked sheets -->
+          <div class="mt-6 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+            <div class="flex items-start justify-between gap-4 mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl bg-sky-100 dark:bg-sky-900/50 text-sky-600 flex items-center justify-center text-lg"><i class="fa-solid fa-link"></i></div>
+                <div>
+                  <h4 class="font-bold text-sm text-slate-900 dark:text-white">Linked sheets</h4>
+                  <p class="text-xs text-slate-400">Pull leads straight from a Google Sheet or Excel Online file by URL.</p>
+                </div>
+              </div>
+              <button onclick="openSheetLinkModal()" class="bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-plus"></i> Link a sheet
+              </button>
+            </div>
+            <div id="sheet-links-list" class="space-y-3"></div>
+          </div>
+
+          <div class="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
+            <h3 class="font-bold text-base text-slate-900 dark:text-white mb-1">Conversion postbacks</h3>
+            <p class="text-xs text-slate-400 mb-5">Fire a conversion event back to the ad platform when a lead reaches a closing stage.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
+                <div class="flex items-center gap-2"><i class="fa-brands fa-meta text-indigo-500"></i><h4 class="font-bold text-xs">Meta Conversions API</h4></div>
+                <input type="text" placeholder="Pixel ID" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500">
+                <label class="flex items-center gap-2 text-[11px] text-slate-500"><input type="checkbox" checked class="rounded text-brand-600"> Fire on Won</label>
+              </div>
+              <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
+                <div class="flex items-center gap-2"><i class="fa-brands fa-google text-blue-500"></i><h4 class="font-bold text-xs">Google offline conversions</h4></div>
+                <input type="text" placeholder="Conversion action ID" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500">
+                <label class="flex items-center gap-2 text-[11px] text-slate-500"><input type="checkbox" checked class="rounded text-brand-600"> Sync GCLID on Won</label>
+              </div>
+              <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
+                <div class="flex items-center gap-2"><i class="fa-solid fa-chart-pie text-amber-500"></i><h4 class="font-bold text-xs">GA4 measurement protocol</h4></div>
+                <input type="text" placeholder="Measurement ID (G-XXXX)" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500">
+                <label class="flex items-center gap-2 text-[11px] text-slate-500"><input type="checkbox" checked class="rounded text-brand-600"> Push generate_lead</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FORMS & QR -->
+      <section id="tab-qrcodes" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm lg:col-span-2 space-y-4">
+            <div>
+              <h3 class="font-bold text-base text-slate-900 dark:text-white">Form builder</h3>
+              <p class="text-xs text-slate-400 mt-0.5">Build a capture form, print the QR, and leads land straight in the pipeline.</p>
+            </div>
+
+            <div class="flex gap-2 overflow-x-auto scroll-thin pb-2">
+              <button onclick="loadFormTemplate('general')" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-lg whitespace-nowrap hover:bg-slate-200 dark:hover:bg-slate-600">General capture</button>
+              <button onclick="loadFormTemplate('consultation')" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-lg whitespace-nowrap hover:bg-slate-200 dark:hover:bg-slate-600">Consultation</button>
+              <button onclick="loadFormTemplate('event')" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-lg whitespace-nowrap hover:bg-slate-200 dark:hover:bg-slate-600">Event signup</button>
+              <button onclick="loadFormTemplate('blank')" class="px-3 py-1.5 bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs font-medium rounded-lg whitespace-nowrap border border-brand-200 dark:border-brand-800">Blank</button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-700">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Form name</label>
+                <input type="text" id="qr-form-title" oninput="updateQRCode()" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Form URL <span class="text-slate-400 font-normal">(auto)</span></label>
+                <input type="text" id="qr-form-url" readonly class="w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-500">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Tag leads as source</label>
+                <select id="qr-form-source" onchange="persistFormSettings()" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Assign new leads to</label>
+                <select id="qr-form-assignee" onchange="persistFormSettings()" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+              </div>
+            </div>
+
+            <div class="space-y-2 mt-2 bg-slate-50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div class="flex items-center justify-between mb-2 gap-3">
+                <h4 class="font-semibold text-xs text-slate-700 dark:text-slate-200">Fields</h4>
+                <select id="add-field-select" onchange="addFormField(this.value)" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500">
+                  <option value="">+ Add field…</option>
+                  <option value="Phone Number">Phone number</option>
+                  <option value="Company Size">Company size</option>
+                  <option value="Budget">Budget</option>
+                  <option value="Comments">Comments</option>
+                </select>
+              </div>
+              <ul id="form-builder-fields" class="space-y-2"></ul>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3 flex-wrap">
+              <span class="text-xs text-slate-400">Changes save as you type</span>
+              <button onclick="openLiveCaptureForm()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium text-xs rounded-xl shadow-sm flex items-center gap-2">
+                <i class="fa-solid fa-eye"></i> Preview &amp; test
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex flex-col items-center text-center">
+            <h3 id="qr-display-title" class="font-bold text-sm text-slate-900 dark:text-white">Form</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Scan to open the capture form</p>
+            <div class="my-5 p-4 bg-white rounded-2xl shadow-inner border border-slate-100 flex items-center justify-center">
+              <div id="qrcode-container"></div>
+            </div>
+            <div class="w-full space-y-2 mt-auto">
+              <button onclick="downloadQRCode()" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-medium text-xs rounded-xl shadow-sm flex items-center justify-center gap-2">
+                <i class="fa-solid fa-download"></i> Download PNG
+              </button>
+              <button onclick="copyFormUrl()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl flex items-center justify-center gap-2">
+                <i class="fa-solid fa-link"></i> Copy form link
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="tab-settings" class="hidden space-y-6">
+        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm space-y-6">
+          <div>
+            <h3 class="font-bold text-base text-slate-900 dark:text-white">Settings</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Everything here saves to this browser automatically.</p>
+          </div>
+
+          <div class="p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+            <h4 class="font-bold text-sm text-slate-900 dark:text-white mb-4">General</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">CRM name</label>
+                <input type="text" id="setting-crm-name" oninput="updateCRMName()" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Currency</label>
+                <select id="setting-currency" onchange="updateCurrency()" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="USD">USD ($)</option>
+                  <option value="LKR">LKR (Rs.)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="INR">INR (₹)</option>
+                  <option value="AUD">AUD (A$)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-sm text-slate-900 dark:text-white">Pipeline stages</h4>
+                <span class="text-[11px] text-slate-400">Rename or reorder</span>
+              </div>
+              <div id="settings-stages-list" class="space-y-2"></div>
+              <div class="flex gap-2 pt-1">
+                <input type="text" id="new-stage-input" placeholder="New stage name…" onkeydown="if(event.key==='Enter')addPipelineStage()" class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <button onclick="addPipelineStage()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl">Add</button>
+              </div>
+              <p class="text-[11px] text-slate-400">Removing a stage moves its leads to the first stage.</p>
+            </div>
+
+            <div class="p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-sm text-slate-900 dark:text-white">Team</h4>
+                <span class="text-[11px] text-slate-400">Lead owners</span>
+              </div>
+              <div id="settings-reps-list" class="space-y-2"></div>
+              <div class="flex gap-2 pt-1">
+                <input type="text" id="new-rep-input" placeholder="New team member…" onkeydown="if(event.key==='Enter')addSalesRep()" class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <button onclick="addSalesRep()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl">Add</button>
+              </div>
+              <p class="text-[11px] text-slate-400">Removing someone leaves their leads unassigned.</p>
+            </div>
+          </div>
+
+          <!-- Team access -->
+          <div class="p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 space-y-4">
+            <div>
+              <h4 class="font-bold text-sm text-slate-900 dark:text-white">Team access</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Everyone signed in to this workspace sees the same pipeline, live.</p>
+            </div>
+            <div id="members-list" class="space-y-2"></div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Workspace ID — share this so a colleague can join at signup</label>
+              <div class="flex gap-2">
+                <input type="text" id="workspace-id-display" readonly class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-500 font-mono">
+                <button onclick="copyText(document.getElementById('workspace-id-display').value,'Workspace ID copied')" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl whitespace-nowrap">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 class="font-bold text-sm text-slate-900 dark:text-white">Data</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Stored in this app's own database, synced to every device.</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="exportCSV()" class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl">Export CSV</button>
+              <button onclick="reloadFromCloud()" class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl">Reload from server</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-3 px-6 text-center z-10 shrink-0">
+      <p class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Developed by Digithaal Digital Solutions</p>
+    </footer>
+  </main>
+</div>
+
+<!-- LEAD MODAL -->
+<div id="lead-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4" onclick="if(event.target===this)closeLeadModal()">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5 max-h-[90vh] overflow-y-auto scroll-thin">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+      <h3 id="lead-modal-title" class="font-bold text-lg text-slate-900 dark:text-white">Add lead</h3>
+      <button onclick="closeLeadModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+    <form id="lead-form" onsubmit="saveLead(event)" class="space-y-4">
+      <input type="hidden" id="lead-id">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Name *</label>
+          <input type="text" id="lead-name" required placeholder="Sarah Jenkins" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Company</label>
+          <input type="text" id="lead-company" placeholder="Acme Corp" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Email</label>
+          <input type="email" id="lead-email" placeholder="sarah@acme.com" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Phone</label>
+          <input type="tel" id="lead-phone" placeholder="+94 …" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Deal value</label>
+          <input type="number" min="0" step="any" id="lead-value" value="5000" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Stage</label>
+          <select id="lead-stage" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Owner</label>
+          <select id="lead-assignee" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Source</label>
+        <select id="lead-source" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Notes</label>
+        <textarea id="lead-notes" rows="2" placeholder="Context, next step, anything useful…" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+      </div>
+      <div class="flex justify-between items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+        <button type="button" id="lead-delete-btn" onclick="deleteLeadFromModal()" class="hidden text-xs font-semibold text-rose-600 hover:text-rose-700 px-2">Delete</button>
+        <div class="flex gap-3 ml-auto">
+          <button type="button" onclick="closeLeadModal()" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs rounded-xl shadow-sm">Save lead</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- PUBLIC FORM MODAL -->
+<div id="public-form-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4" onclick="if(event.target===this)closePublicForm()">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5 max-h-[90vh] overflow-y-auto scroll-thin">
+    <div class="text-center pb-3 border-b border-slate-100 dark:border-slate-700">
+      <span class="px-2.5 py-1 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400 text-[10px] font-bold rounded-full">Form preview</span>
+      <h3 id="public-form-header-title" class="font-bold text-lg text-slate-900 dark:text-white mt-2">Form</h3>
+      <p class="text-xs text-slate-400 mt-0.5">Submitting creates a real lead in your pipeline</p>
+    </div>
+    <form onsubmit="submitPublicFormLead(event)" class="space-y-4">
+      <div id="public-form-fields" class="space-y-4"></div>
+      <div class="flex items-center gap-3 pt-2">
+        <button type="button" onclick="closePublicForm()" class="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl">Close</button>
+        <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs rounded-xl shadow-sm">Submit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- IMPORT MAPPING MODAL -->
+<div id="import-modal" class="fixed inset-0 z-[55] bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4" onclick="if(event.target===this)hideModal('import-modal')">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5 max-h-[90vh] overflow-y-auto scroll-thin">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+      <div>
+        <h3 class="font-bold text-lg text-slate-900 dark:text-white">Map your columns</h3>
+        <p id="import-file-info" class="text-xs text-slate-400 mt-0.5"></p>
+      </div>
+      <button onclick="hideModal('import-modal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+
+    <div id="import-sheet-picker-wrap" class="hidden">
+      <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Worksheet</label>
+      <select id="import-sheet-picker" onchange="selectImportSheet(this.value)" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+    </div>
+
+    <div>
+      <div class="flex items-center justify-between mb-2">
+        <h4 class="font-semibold text-xs text-slate-700 dark:text-slate-200">Match spreadsheet columns to CRM fields</h4>
+        <span class="text-[11px] text-slate-400">Guessed from your headers</span>
+      </div>
+      <div id="import-mapping" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    </div>
+
+    <div>
+      <h4 class="font-semibold text-xs text-slate-700 dark:text-slate-200 mb-2">Preview</h4>
+      <div class="overflow-x-auto scroll-thin border border-slate-200 dark:border-slate-700 rounded-xl">
+        <table class="w-full text-left text-[11px]">
+          <thead id="import-preview-head" class="bg-slate-50 dark:bg-slate-900/50 text-slate-400 uppercase tracking-wider"></thead>
+          <tbody id="import-preview-body" class="divide-y divide-slate-100 dark:divide-slate-700/60"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100 dark:border-slate-700">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Source tag</label>
+        <input type="text" id="import-source" list="source-suggestions" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Default stage</label>
+        <select id="import-stage" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Default owner</label>
+        <select id="import-owner" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+      </div>
+    </div>
+
+    <label class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+      <input type="checkbox" id="import-skip-dupes" checked class="rounded text-brand-600"> Skip rows that match a lead I already have (same email, or same name + company)
+    </label>
+
+    <div class="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+      <span id="import-count-note" class="text-xs text-slate-400"></span>
+      <div class="flex gap-3">
+        <button onclick="hideModal('import-modal')" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl">Cancel</button>
+        <button onclick="runImport()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-sm">Import leads</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LINK A SHEET MODAL -->
+<div id="sheet-link-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4" onclick="if(event.target===this)hideModal('sheet-link-modal')">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5 max-h-[90vh] overflow-y-auto scroll-thin">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+      <div class="flex items-center gap-3">
+        <div id="sheet-icon-preview" class="w-12 h-12 rounded-xl bg-sky-100 dark:bg-sky-900/50 text-sky-600 flex items-center justify-center text-xl"><i class="fa-solid fa-link"></i></div>
+        <h3 id="sheet-modal-title" class="font-bold text-lg text-slate-900 dark:text-white">Link a sheet</h3>
+      </div>
+      <button onclick="hideModal('sheet-link-modal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+
+    <form onsubmit="saveSheetLink(event)" class="space-y-4">
+      <input type="hidden" id="sheet-id">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Sheet URL *</label>
+        <input type="url" id="sheet-url" required oninput="detectSheetProvider()" placeholder="https://docs.google.com/spreadsheets/d/… or https://…sharepoint.com/…xlsx" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        <p id="sheet-provider-note" class="text-[11px] text-slate-400 mt-1.5"></p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Name *</label>
+          <input type="text" id="sheet-name" required placeholder="e.g. Expo booth signups" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Tag leads as</label>
+          <input type="text" id="sheet-source" list="source-suggestions" placeholder="e.g. Spreadsheet" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Land leads in</label>
+          <select id="sheet-stage" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Auto-assign to</label>
+          <select id="sheet-owner" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+        </div>
+      </div>
+
+      <label class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+        <input type="checkbox" id="sheet-skip-dupes" checked class="rounded text-brand-600"> Skip rows already imported (so re-syncing only adds new ones)
+      </label>
+
+      <div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60">
+        <p class="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+          <i class="fa-solid fa-circle-info mr-1"></i>
+          The sheet has to be readable without a login. In Google Sheets use <strong>Share → Anyone with the link</strong>, or <strong>File → Share → Publish to web</strong>. In Excel Online / OneDrive use <strong>Share → Anyone with the link</strong>. Private, sign-in-only files can't be fetched from the browser — download and use the import above instead.
+        </p>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+        <button type="button" onclick="hideModal('sheet-link-modal')" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl">Cancel</button>
+        <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs rounded-xl shadow-sm">Save &amp; sync</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- INTEGRATION MODAL -->
+<div id="integration-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4" onclick="if(event.target===this)hideModal('integration-modal')">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5 max-h-[90vh] overflow-y-auto scroll-thin">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+      <div class="flex items-center gap-3">
+        <div id="int-icon-preview" class="w-12 h-12 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xl"><i class="fa-solid fa-plug"></i></div>
+        <h3 id="int-modal-title" class="font-bold text-lg text-slate-900 dark:text-white">Add integration</h3>
+      </div>
+      <button onclick="hideModal('integration-modal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+
+    <form onsubmit="saveIntegration(event)" class="space-y-4">
+      <input type="hidden" id="int-id">
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Platform</label>
+          <select id="int-system" onchange="applySystemPreset(true)" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Display name *</label>
+          <input type="text" id="int-name" required placeholder="e.g. Google Ads – Colombo account" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Description</label>
+        <input type="text" id="int-desc" placeholder="What this connector brings in" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Connection method</label>
+          <select id="int-method" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option>Webhook</option><option>API key</option><option>OAuth</option><option>Polling</option><option>Manual import</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Tag incoming leads as</label>
+          <input type="text" id="int-source" list="source-suggestions" placeholder="e.g. LinkedIn Ads" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <datalist id="source-suggestions"></datalist>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Endpoint / webhook URL</label>
+        <input type="text" id="int-endpoint" placeholder="https://…" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">API key / token</label>
+        <div class="flex gap-2">
+          <input type="text" id="int-key" placeholder="Paste a key, or generate one" class="flex-1 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <button type="button" onclick="regenerateKey()" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl whitespace-nowrap">Generate</button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1">Stored in this browser only — don't put a production secret here.</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-700">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Land new leads in</label>
+          <select id="int-stage" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Auto-assign to</label>
+          <select id="int-owner" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"></select>
+        </div>
+      </div>
+
+      <label class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+        <input type="checkbox" id="int-active" checked class="rounded text-brand-600"> Active (receiving leads)
+      </label>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+        <button type="button" onclick="hideModal('integration-modal')" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl">Cancel</button>
+        <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs rounded-xl shadow-sm">Save integration</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- AI DRAFT MODAL -->
+<div id="draft-modal" class="fixed inset-0 z-[55] bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4" onclick="if(event.target===this)hideModal('draft-modal')">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 max-h-[90vh] overflow-y-auto scroll-thin">
+    <div class="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-700 gap-3">
+      <div>
+        <h3 class="font-bold text-lg text-slate-900 dark:text-white">Follow-up draft</h3>
+        <p id="draft-modal-lead" class="text-xs text-slate-400 mt-0.5"></p>
+      </div>
+      <button onclick="hideModal('draft-modal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+
+    <div class="flex items-end gap-2">
+      <div class="flex-1">
+        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Tone</label>
+        <select id="draft-tone" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <option>warm but professional</option>
+          <option>short and direct</option>
+          <option>consultative</option>
+          <option>final follow-up before closing the file</option>
+        </select>
+      </div>
+      <button onclick="draftFollowUp(document.getElementById('draft-lead-id').value)" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl whitespace-nowrap">Redraft</button>
+    </div>
+    <input type="hidden" id="draft-lead-id">
+
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Subject</label>
+      <input type="text" id="draft-subject" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Body</label>
+      <textarea id="draft-body" rows="10" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+    </div>
+    <p class="text-[11px] text-slate-400">Written by a model from your lead's details — read it before sending, and fill in anything left in [brackets].</p>
+
+    <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+      <button onclick="hideModal('draft-modal')" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl">Close</button>
+      <button onclick="copyDraft()" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs rounded-xl shadow-sm"><i class="fa-solid fa-copy mr-1"></i> Copy</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div id="confirm-modal" class="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+    <h3 id="confirm-title" class="font-bold text-base text-slate-900 dark:text-white">Are you sure?</h3>
+    <p id="confirm-text" class="text-xs text-slate-500 dark:text-slate-400 mt-2"></p>
+    <div class="flex justify-end gap-3 mt-6">
+      <button onclick="resolveConfirm(false)" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl">Cancel</button>
+      <button id="confirm-ok" onclick="resolveConfirm(true)" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- State & storage ---------------- */
+
+const BASE_SOURCES = ['Google Ads','Meta Ads','TikTok Ads','QR Code Campaign','External Webhook','Direct Outreach','Referral','CSV Import'];
+
+/* Known platforms — pick one when adding an integration, or use "Other" and name it yourself */
+const SYSTEMS = {
+  'Google Ads':          { icon:'fa-brands fa-google',           tone:'blue',    method:'Webhook',       source:'Google Ads' },
+  'Meta Lead Ads':       { icon:'fa-brands fa-meta',             tone:'indigo',  method:'Webhook',       source:'Meta Ads' },
+  'TikTok Lead Gen':     { icon:'fa-brands fa-tiktok',           tone:'slate',   method:'Webhook',       source:'TikTok Ads' },
+  'LinkedIn Lead Gen':   { icon:'fa-brands fa-linkedin',         tone:'sky',     method:'OAuth',         source:'LinkedIn Ads' },
+  'WhatsApp Business':   { icon:'fa-brands fa-whatsapp',         tone:'emerald', method:'Webhook',       source:'WhatsApp' },
+  'HubSpot':             { icon:'fa-brands fa-hubspot',          tone:'amber',   method:'API key',       source:'HubSpot' },
+  'Mailchimp':           { icon:'fa-brands fa-mailchimp',        tone:'amber',   method:'API key',       source:'Mailchimp' },
+  'Zapier':              { icon:'fa-solid fa-bolt',              tone:'amber',   method:'Webhook',       source:'Zapier' },
+  'Make.com':            { icon:'fa-solid fa-diagram-project',   tone:'purple',  method:'Webhook',       source:'Make.com' },
+  'Typeform / Forms':    { icon:'fa-solid fa-list-check',        tone:'purple',  method:'Webhook',       source:'Web Form' },
+  'Google Sheets':       { icon:'fa-solid fa-table',             tone:'emerald', method:'Polling',       source:'Spreadsheet' },
+  'Website form':        { icon:'fa-solid fa-code',              tone:'teal',    method:'Webhook',       source:'Website' },
+  'Email parser':        { icon:'fa-solid fa-envelope',          tone:'rose',    method:'Polling',       source:'Email Inquiry' },
+  'Call tracking':       { icon:'fa-solid fa-phone',             tone:'rose',    method:'Webhook',       source:'Phone Call' },
+  'Custom webhook / API':{ icon:'fa-solid fa-plug',              tone:'slate',   method:'Webhook',       source:'External Webhook' },
+  'Other':               { icon:'fa-solid fa-puzzle-piece',      tone:'slate',   method:'Manual import', source:'Other' }
+};
+const METHODS = ['Webhook','API key','OAuth','Polling','Manual import'];
+const TONES = {
+  blue:'bg-blue-100 dark:bg-blue-900/50 text-blue-600', indigo:'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600',
+  slate:'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200', amber:'bg-amber-100 dark:bg-amber-900/50 text-amber-600',
+  emerald:'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600', sky:'bg-sky-100 dark:bg-sky-900/50 text-sky-600',
+  purple:'bg-purple-100 dark:bg-purple-900/50 text-purple-600', rose:'bg-rose-100 dark:bg-rose-900/50 text-rose-600',
+  teal:'bg-teal-100 dark:bg-teal-900/50 text-teal-600'
+};
+
+function getSources() {
+  const extra = (crmState.integrations || []).map(i => i.sourceTag).filter(Boolean);
+  return Array.from(new Set(BASE_SOURCES.concat(extra)));
+}
+function slugify(s) { return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+
+function blankState() {
+  return {
+    crmName: 'OmniLeads',
+    currency: 'USD',
+    stages: ['New','Contacted','Qualified','Proposal Sent','Won','Lost'],
+    salesReps: ['Me'],
+    pipelineView: 'kanban',
+    sort: { key: 'value', dir: 'desc' },
+    theme: 'light',
+    integrations: [],
+    sheetLinks: [],
+    members: [],
+    form: {
+      title: 'Lead Capture Form',
+      fields: ['Full Name','Email Address','Company'],
+      source: 'QR Code Campaign',
+      assignee: ''
+    },
+    leads: []
+  };
+}
+
+let crmState = blankState();
+let qrCodeInstance = null;
+let lastDeleted = null;
+let confirmResolver = null;
+
+/* =====================================================================
+   DATA LAYER — talks to this app's own API on the same origin.
+   crmState stays the in-memory source of truth for rendering; every
+   change is written through to the server and echoed to other devices.
+   ===================================================================== */
+let session = null;        // { email, role }
+let workspaceId = null;
+let eventSource = null;
+let settingsTimer = null;
+let pendingWrites = 0;
+let aiAvailable = false;
+
+function cloudReady() { return !!(session && workspaceId); }
+
+/* ---- one place for every request ---- */
+async function apiCall(method, path, body) {
+  const res = await fetch('/api' + path, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'same-origin'
+  });
+  let data = null;
+  try { data = await res.json(); } catch { /* empty body */ }
+  if (!res.ok) {
+    if (res.status === 401 && session) {   // session expired mid-use
+      session = null; workspaceId = null;
+      closeEventStream();
+      showAuth(true);
+      setAuthMode('signin');
+      document.getElementById('auth-error').innerText = 'Your session expired — please sign in again.';
+    }
+    const err = new Error((data && data.error) || `Request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+/* ---- sync indicator ---- */
+function setSyncStatus(text, tone) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  const tones = { ok:'text-emerald-500', busy:'text-slate-400', err:'text-rose-500' };
+  el.className = 'text-[11px] font-medium ' + (tones[tone] || tones.busy);
+  el.innerHTML = tone === 'busy'
+    ? `<i class="fa-solid fa-circle-notch fa-spin mr-1"></i>${esc(text)}`
+    : tone === 'err'
+    ? `<i class="fa-solid fa-triangle-exclamation mr-1"></i>${esc(text)}`
+    : `<i class="fa-solid fa-cloud-arrow-up mr-1"></i>${esc(text)}`;
+}
+function beginWrite() { pendingWrites++; setSyncStatus('Saving…', 'busy'); }
+function endWrite(err) {
+  pendingWrites = Math.max(0, pendingWrites - 1);
+  if (err) { setSyncStatus('Not saved — check connection', 'err'); console.error(err); }
+  else if (pendingWrites === 0) setSyncStatus('All changes saved', 'ok');
+}
+
+/* ---- settings: debounced so typing a name is one write, not twelve ---- */
+function save() {
+  if (!cloudReady()) return;
+  clearTimeout(settingsTimer);
+  setSyncStatus('Saving…', 'busy');
+  settingsTimer = setTimeout(async () => {
+    const settings = {
+      crmName: crmState.crmName, currency: crmState.currency, stages: crmState.stages,
+      salesReps: crmState.salesReps, form: crmState.form, pipelineView: crmState.pipelineView,
+      sort: crmState.sort, theme: crmState.theme
+    };
+    beginWrite();
+    try { await apiCall('PUT', '/settings', { settings }); endWrite(); }
+    catch (err) { endWrite(err); }
+  }, 600);
+}
+
+/* ---- initial load: one round trip ---- */
+async function loadAll() {
+  setSyncStatus('Loading…', 'busy');
+  try {
+    const d = await apiCall('GET', '/bootstrap');
+    session = d.user;
+    workspaceId = d.workspaceId;
+    const s = d.settings || {};
+    const base = blankState();
+    crmState = Object.assign(base, {
+      crmName: s.crmName || 'OmniLeads',
+      currency: s.currency || 'USD',
+      stages: Array.isArray(s.stages) && s.stages.length ? s.stages : base.stages,
+      salesReps: Array.isArray(s.salesReps) && s.salesReps.length ? s.salesReps : base.salesReps,
+      form: Object.assign(base.form, s.form || {}),
+      pipelineView: s.pipelineView || 'kanban',
+      sort: s.sort || base.sort,
+      theme: s.theme || 'light'
+    });
+    crmState.leads = d.leads || [];
+    crmState.integrations = d.integrations || [];
+    crmState.sheetLinks = d.sheetLinks || [];
+    crmState.members = d.members || [];
+    setSyncStatus('All changes saved', 'ok');
+    return true;
+  } catch (err) {
+    setSyncStatus('Could not load data', 'err');
+    showToast('Could not load your workspace: ' + err.message, 'error');
+    return false;
+  }
+}
+
+/* ---- leads ---- */
+async function cloudInsertLeads(leads) {
+  if (!cloudReady()) return leads;
+
+  // Drop any optimistic copies the caller added BEFORE awaiting. Our own write
+  // also comes back on the live stream, and while a local row still carries a
+  // tmp_ id the stream's dedupe-by-id cannot recognise it — which would show
+  // the lead twice. Removing the placeholders up front closes that window.
+  const tempIds = new Set(leads.map(l => l.id).filter(id => String(id).startsWith('tmp_')));
+  if (tempIds.size) crmState.leads = crmState.leads.filter(l => !tempIds.has(l.id));
+
+  beginWrite();
+  try {
+    const d = await apiCall('POST', '/leads', { leads });
+    endWrite();
+    const saved = d.leads || [];
+    // Merge by server id, so it does not matter whether this response or the
+    // live event got here first.
+    for (const l of saved) {
+      if (!crmState.leads.some(x => x.id === l.id)) crmState.leads.unshift(l);
+    }
+    return saved;
+  } catch (err) {
+    endWrite(err);
+    showToast('Could not save to the server — reloading', 'error');
+    if (await loadAll()) refreshAllUI();
+    return [];
+  }
+}
+
+async function cloudUpdateLead(lead) {
+  if (!cloudReady() || String(lead.id).startsWith('tmp_')) return;
+  beginWrite();
+  try { await apiCall('PATCH', '/leads/' + lead.id, { lead }); endWrite(); }
+  catch (err) { endWrite(err); showToast('Change not saved — check your connection', 'error'); }
+}
+
+async function cloudDeleteLeads(ids) {
+  const real = ids.filter(i => !String(i).startsWith('tmp_'));
+  if (!cloudReady() || !real.length) return;
+  beginWrite();
+  try { await apiCall('DELETE', '/leads', { ids: real }); endWrite(); }
+  catch (err) { endWrite(err); }
+}
+
+/* ---- live updates: one SSE stream, fanned out by the server ---- */
+function subscribeRealtime() {
+  if (!cloudReady() || eventSource) return;
+  eventSource = new EventSource('/api/events', { withCredentials: true });
+
+  eventSource.addEventListener('lead_insert', e => {
+    const l = JSON.parse(e.data);
+    if (crmState.leads.some(x => x.id === l.id)) return;
+    crmState.leads.unshift(l);
+    refreshLocalUI();
+    showToast(`New lead: ${l.name} (${l.source || 'direct'})`, 'success',
+      { label: 'View', fn: () => { switchTab('pipeline'); editLead(l.id); } });
+  });
+
+  eventSource.addEventListener('lead_update', e => {
+    const l = JSON.parse(e.data);
+    const i = crmState.leads.findIndex(x => x.id === l.id);
+    if (i > -1) { crmState.leads[i] = l; refreshLocalUI(); }
+  });
+
+  eventSource.addEventListener('lead_delete', e => {
+    const { id } = JSON.parse(e.data);
+    const before = crmState.leads.length;
+    crmState.leads = crmState.leads.filter(x => x.id !== id);
+    if (crmState.leads.length !== before) refreshLocalUI();
+  });
+
+  // The browser reconnects on its own; this just surfaces a long outage.
+  eventSource.onerror = () => {
+    if (eventSource.readyState === EventSource.CLOSED) setSyncStatus('Live updates reconnecting…', 'busy');
+  };
+}
+function closeEventStream() {
+  if (eventSource) { eventSource.close(); eventSource = null; }
+}
+
+/* Re-render without writing anything back (used by live updates) */
+function refreshLocalUI() {
+  updateDashboardMetrics();
+  document.getElementById('nav-lead-count').innerText = crmState.leads.length;
+  if (!document.getElementById('tab-pipeline').classList.contains('hidden')) renderPipeline();
+  if (!document.getElementById('tab-integrations').classList.contains('hidden')) renderIntegrations();
+}
+
+/* ---- auth ---- */
+function showAuth(show) {
+  const gate = document.getElementById('auth-gate');
+  gate.classList.toggle('hidden', !show);
+  gate.classList.toggle('flex', show);
+  document.getElementById('app-shell').classList.toggle('invisible', show);
+}
+
+async function signIn(e) {
+  e.preventDefault();
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const mode = document.getElementById('auth-mode').value;
+  const btn = document.getElementById('auth-submit');
+  const errEl = document.getElementById('auth-error');
+  errEl.innerText = '';
+  btn.disabled = true; btn.innerText = 'Please wait…';
+  try {
+    const body = { email, password };
+    if (mode === 'signup') {
+      body.company = document.getElementById('auth-company').value.trim();
+      const invite = document.getElementById('auth-invite').value.trim();
+      if (invite) body.joinWorkspace = invite;
+    }
+    await apiCall('POST', mode === 'signup' ? '/auth/signup' : '/auth/login', body);
+    await startSession();
+  } catch (err) {
+    errEl.innerText = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerText = mode === 'signup' ? 'Create account' : 'Sign in';
+  }
+}
+
+function setAuthMode(mode) {
+  document.getElementById('auth-mode').value = mode;
+  const signup = mode === 'signup';
+  document.getElementById('auth-signup-fields').classList.toggle('hidden', !signup);
+  document.getElementById('auth-submit').innerText = signup ? 'Create account' : 'Sign in';
+  document.getElementById('auth-title').innerText = signup ? 'Create your workspace' : 'Sign in to your CRM';
+  document.getElementById('auth-switch').innerHTML = signup
+    ? 'Already have an account? <button type="button" onclick="setAuthMode(\'signin\')" class="font-semibold text-brand-600 hover:underline">Sign in</button>'
+    : 'New here? <button type="button" onclick="setAuthMode(\'signup\')" class="font-semibold text-brand-600 hover:underline">Create a workspace</button>';
+  document.getElementById('auth-error').innerText = '';
+}
+
+async function signOut() {
+  closeEventStream();
+  try { await apiCall('POST', '/auth/logout'); } catch { /* going anyway */ }
+  session = null; workspaceId = null;
+  showAuth(true);
+  setAuthMode('signin');
+}
+
+async function startSession() {
+  const ok = await loadAll();
+  if (!ok) return;
+  showAuth(false);
+  // Order matters: the live connection is established before any rendering,
+  // so a rendering failure can never leave the app without live updates.
+  subscribeRealtime();
+  try {
+    applyLoadedState();
+  } catch (err) {
+    console.error('Rendering failed after load:', err);
+    showToast('Some of the page could not be drawn — try reloading', 'error');
+  }
+  apiCall('GET', '/ai/status')
+    .then(s => { aiAvailable = !!s.available; reflectAiAvailability(); })
+    .catch(() => {});
+}
+
+function applyLoadedState() {
+  if (crmState.theme === 'dark') document.documentElement.classList.add('dark');
+  else document.documentElement.classList.remove('dark');
+  syncThemeIcon();
+  document.getElementById('setting-crm-name').value = crmState.crmName;
+  document.getElementById('setting-currency').value = crmState.currency;
+  document.getElementById('sidebar-crm-name').innerText = crmState.crmName;
+  document.title = crmState.crmName + ' — Marketing CRM & Pipeline';
+  document.getElementById('qr-form-title').value = crmState.form.title;
+  document.getElementById('user-email').innerText = session.email;
+  document.getElementById('user-initials').innerText = initials(session.email.split('@')[0].replace(/[._]/g, ' '));
+  document.getElementById('workspace-id-display').value = workspaceId;
+  populateDropdowns();
+  setPipelineView(crmState.pipelineView, true);
+  initQRCode();
+  refreshAllUI();
+}
+
+async function reloadFromCloud() {
+  if (!cloudReady()) { showToast('Not signed in', 'error'); return; }
+  if (!(await loadAll())) return;
+  applyLoadedState();
+  renderSettingsUI();
+  showToast('Reloaded from server', 'success');
+}
+
+/* ---- AI ---- */
+function reflectAiAvailability() {
+  document.querySelectorAll('[data-ai-only]').forEach(el => el.classList.toggle('hidden', !aiAvailable));
+}
+
+async function scoreLead(id) {
+  if (!aiAvailable) { showToast('AI is not configured on this app', 'error'); return; }
+  showToast('Scoring lead…', 'info');
+  try {
+    const d = await apiCall('POST', '/ai/score/' + id);
+    const lead = crmState.leads.find(l => l.id === id);
+    if (lead) { lead.aiScore = d.score; lead.aiReason = d.reason; }
+    refreshAllUI();
+    showToast(`Scored ${d.score}/100 — ${d.reason}`, 'success');
+  } catch (err) { showToast('Could not score: ' + err.message, 'error'); }
+}
+
+async function scoreAllLeads() {
+  if (!aiAvailable) { showToast('AI is not configured on this app', 'error'); return; }
+  showToast('Scoring open leads…', 'info');
+  try {
+    const d = await apiCall('POST', '/ai/score-all');
+    if (!d.scored) { showToast(d.note || 'Nothing to score', 'info'); return; }
+    if (await loadAll()) { applyLoadedState(); }
+    showToast(`Scored ${d.scored} of ${d.attempted} leads`, 'success');
+  } catch (err) { showToast('Could not score: ' + err.message, 'error'); }
+}
+
+async function draftFollowUp(id) {
+  if (!aiAvailable) { showToast('AI is not configured on this app', 'error'); return; }
+  const lead = crmState.leads.find(l => l.id === id);
+  if (!lead) return;
+  document.getElementById('draft-modal-lead').innerText = `${lead.name}${lead.company ? ' · ' + lead.company : ''}`;
+  document.getElementById('draft-lead-id').value = id;
+  document.getElementById('draft-subject').value = '';
+  document.getElementById('draft-body').value = 'Drafting…';
+  showModal('draft-modal');
+  try {
+    const d = await apiCall('POST', '/ai/draft/' + id, { tone: document.getElementById('draft-tone').value });
+    document.getElementById('draft-subject').value = d.subject || '';
+    document.getElementById('draft-body').value = d.body || '';
+  } catch (err) {
+    document.getElementById('draft-body').value = '';
+    showToast('Could not draft: ' + err.message, 'error');
+  }
+}
+
+function copyDraft() {
+  const s = document.getElementById('draft-subject').value;
+  const b = document.getElementById('draft-body').value;
+  copyText((s ? 'Subject: ' + s + '\n\n' : '') + b, 'Draft copied');
+}
+const CUR = { USD:'$', LKR:'Rs. ', EUR:'€', GBP:'£', INR:'₹', AUD:'A$' };
+function formatCurrency(amount) {
+  const n = Number(amount) || 0;
+  const sym = CUR[crmState.currency] || '$';
+  return sym + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+function compact(amount) {
+  const n = Number(amount) || 0;
+  const sym = CUR[crmState.currency] || '$';
+  if (n >= 1000000) return sym + (n/1000000).toFixed(1) + 'M';
+  if (n >= 10000) return sym + Math.round(n/1000) + 'k';
+  return formatCurrency(n);
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function isWon(stage){ return /won/i.test(stage); }
+function isLost(stage){ return /lost|disqualif/i.test(stage); }
+function isClosed(stage){ return isWon(stage) || isLost(stage); }
+
+/* ---------------- Init ---------------- */
+document.addEventListener('DOMContentLoaded', async () => {
+  bindShortcuts();
+  setAuthMode('signin');
+
+  // A session cookie may already be valid from a previous visit.
+  try {
+    await apiCall('GET', '/bootstrap');
+    await startSession();
+  } catch {
+    showAuth(true);
+  }
+
+  // Flush any debounced settings write before the tab closes
+  window.addEventListener('beforeunload', (e) => {
+    if (pendingWrites > 0) { e.preventDefault(); e.returnValue = ''; }
+  });
+});
+
+function bindShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeLeadModal(); closePublicForm(); hideModal('integration-modal'); hideModal('import-modal'); hideModal('sheet-link-modal'); hideModal('draft-modal'); if (confirmResolver) resolveConfirm(false); closeMobileSidebar(); }
+    const typing = /input|textarea|select/i.test(document.activeElement.tagName);
+    if (e.key === '/' && !typing) {
+      e.preventDefault();
+      switchTab('pipeline');
+      document.getElementById('pipeline-search').focus();
+    }
+    if (e.key.toLowerCase() === 'n' && !typing && !e.metaKey && !e.ctrlKey) { e.preventDefault(); openLeadModal(); }
+  });
+}
+
+/* ---------------- Navigation ---------------- */
+const TABS = ['dashboard','pipeline','integrations','qrcodes','settings'];
+const TITLES = { dashboard:'Dashboard', pipeline:'Leads pipeline', integrations:'Integrations', qrcodes:'Forms & QR codes', settings:'Settings' };
+
+function switchTab(tabId) {
+  TABS.forEach(t => {
+    document.getElementById('tab-' + t).classList.add('hidden');
+    const nav = document.getElementById('nav-' + t);
+    nav.className = 'nav-link flex items-center gap-3 px-3.5 py-3 rounded-xl font-medium text-sm transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50';
+  });
+  document.getElementById('tab-' + tabId).classList.remove('hidden');
+  document.getElementById('nav-' + tabId).className = 'nav-link flex items-center gap-3 px-3.5 py-3 rounded-xl font-medium text-sm transition-all bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400';
+  document.getElementById('page-title').innerText = TITLES[tabId] || 'CRM';
+  closeMobileSidebar();
+  if (tabId === 'pipeline') renderPipeline();
+  if (tabId === 'settings') renderSettingsUI();
+  if (tabId === 'integrations') { renderIntegrations(); renderSheetLinks(); }
+  if (tabId === 'qrcodes') { renderFormBuilderFields(); updateQRCode(); }
+}
+
+function openMobileSidebar() {
+  document.getElementById('sidebar').classList.remove('-translate-x-full');
+  document.getElementById('sidebar-backdrop').classList.remove('hidden');
+}
+function closeMobileSidebar() {
+  if (window.innerWidth >= 768) return;
+  document.getElementById('sidebar').classList.add('-translate-x-full');
+  document.getElementById('sidebar-backdrop').classList.add('hidden');
+}
+
+/* ---------------- Refresh ---------------- */
+function refreshAllUI() {
+  save();
+  updateDashboardMetrics();
+  populateDropdowns();
+  document.getElementById('nav-lead-count').innerText = crmState.leads.length;
+  if (!document.getElementById('tab-pipeline').classList.contains('hidden')) renderPipeline();
+  if (!document.getElementById('tab-settings').classList.contains('hidden')) renderSettingsUI();
+  if (!document.getElementById('tab-integrations').classList.contains('hidden')) { renderIntegrations(); renderSheetLinks(); }
+  const activeCount = crmState.integrations.filter(i => i.on).length;
+  document.getElementById('integration-badge').innerText = activeCount + ' active';
+}
+
+/* ---------------- Dashboard ---------------- */
+function updateDashboardMetrics() {
+  const leads = crmState.leads;
+  const open = leads.filter(l => !isClosed(l.stage));
+  const won = leads.filter(l => isWon(l.stage));
+  const lost = leads.filter(l => isLost(l.stage));
+  const openValue = open.reduce((a,l) => a + (Number(l.value)||0), 0);
+  const wonValue = won.reduce((a,l) => a + (Number(l.value)||0), 0);
+
+  document.getElementById('stat-total-leads').innerText = leads.length;
+  document.getElementById('stat-total-sub').innerText = open.length + ' still open';
+  document.getElementById('stat-open-value').innerText = compact(openValue);
+  document.getElementById('stat-open-sub').innerText = open.length ? 'Avg ' + compact(openValue/open.length) + ' per deal' : 'No open deals';
+  document.getElementById('stat-won-value').innerText = compact(wonValue);
+  document.getElementById('stat-won-sub').innerText = won.length + (won.length === 1 ? ' deal won' : ' deals won');
+
+  const closed = won.length + lost.length;
+  document.getElementById('stat-winrate').innerText = closed ? Math.round((won.length/closed)*100) + '%' : '—';
+  document.getElementById('stat-winrate-sub').innerText = closed ? won.length + ' of ' + closed + ' closed' : 'No closed deals yet';
+
+  // Sources
+  const tones = { 'Google Ads':'bg-blue-500','Meta Ads':'bg-indigo-500','TikTok Ads':'bg-slate-800 dark:bg-slate-300','QR Code Campaign':'bg-emerald-500','External Webhook':'bg-amber-500','Direct Outreach':'bg-rose-500','Referral':'bg-purple-500','CSV Import':'bg-teal-500' };
+  const counts = {};
+  leads.forEach(l => { counts[l.source || 'Unknown'] = (counts[l.source || 'Unknown'] || 0) + 1; });
+  const entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  const box = document.getElementById('source-breakdown');
+  document.getElementById('source-total-chip').innerText = leads.length + (leads.length === 1 ? ' lead' : ' leads');
+  if (!entries.length) {
+    box.innerHTML = '<p class="text-xs text-slate-400 italic py-6 text-center">No leads yet — add one or run a simulated sync.</p>';
+  } else {
+    box.innerHTML = entries.map(([src,count]) => {
+      const pct = Math.round((count/leads.length)*100);
+      const value = leads.filter(l => (l.source||'Unknown') === src).reduce((a,l)=>a+(Number(l.value)||0),0);
+      return `<div>
+        <div class="flex justify-between text-xs font-semibold mb-1.5 gap-3">
+          <span class="truncate">${esc(src)}</span>
+          <span class="text-slate-400 font-medium whitespace-nowrap">${count} · ${compact(value)} · ${pct}%</span>
+        </div>
+        <div class="w-full bg-slate-100 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
+          <div class="${tones[src] || 'bg-slate-400'} h-full rounded-full transition-all duration-500" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Stages
+  const sbox = document.getElementById('stage-breakdown');
+  sbox.innerHTML = crmState.stages.map(stage => {
+    const inStage = leads.filter(l => l.stage === stage);
+    const val = inStage.reduce((a,l)=>a+(Number(l.value)||0),0);
+    return `<button onclick="focusStage('${esc(stage).replace(/'/g,"\\'")}')" class="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/60 dark:border-slate-700/60 hover:border-brand-300 dark:hover:border-brand-700 transition-colors text-left">
+      <span class="text-xs font-semibold truncate">${esc(stage)}</span>
+      <span class="text-xs text-slate-400 whitespace-nowrap ml-3">${inStage.length} · ${compact(val)}</span>
+    </button>`;
+  }).join('');
+}
+
+function focusStage(stage) {
+  switchTab('pipeline');
+  setPipelineView('list');
+  document.getElementById('pipeline-search').value = '';
+  renderPipeline(stage);
+}
+
+/* ---------------- Dropdowns ---------------- */
+function populateDropdowns() {
+  const fill = (el, items, placeholder) => {
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = (placeholder ? `<option value="">${placeholder}</option>` : '') +
+      items.map(i => `<option value="${esc(i)}">${esc(i)}</option>`).join('');
+    if (items.includes(cur) || cur === '') el.value = cur;
+  };
+  fill(document.getElementById('lead-assignee'), crmState.salesReps.concat(['Unassigned']));
+  fill(document.getElementById('qr-form-assignee'), crmState.salesReps);
+  fill(document.getElementById('pipeline-filter-rep'), crmState.salesReps, 'All owners');
+  const sources = getSources();
+  fill(document.getElementById('pipeline-filter-source'), sources, 'All sources');
+  fill(document.getElementById('lead-stage'), crmState.stages);
+  fill(document.getElementById('lead-source'), sources);
+  fill(document.getElementById('qr-form-source'), sources);
+  fill(document.getElementById('int-stage'), crmState.stages, 'First stage');
+  fill(document.getElementById('int-owner'), crmState.salesReps, 'Leave unassigned');
+  fill(document.getElementById('import-stage'), crmState.stages);
+  fill(document.getElementById('import-owner'), crmState.salesReps, 'Leave unassigned');
+  fill(document.getElementById('sheet-stage'), crmState.stages);
+  fill(document.getElementById('sheet-owner'), crmState.salesReps, 'Leave unassigned');
+  fill(document.getElementById('int-system'), Object.keys(SYSTEMS));
+  const dl = document.getElementById('source-suggestions');
+  if (dl) dl.innerHTML = sources.map(s => `<option value="${esc(s)}"></option>`).join('');
+  const qa = document.getElementById('qr-form-assignee');
+  if (qa && crmState.salesReps.includes(crmState.form.assignee)) qa.value = crmState.form.assignee;
+  const qs = document.getElementById('qr-form-source');
+  if (qs) qs.value = crmState.form.source;
+}
+
+/* ---------------- Pipeline ---------------- */
+function setPipelineView(view, silent) {
+  crmState.pipelineView = view;
+  const kan = document.getElementById('pipeline-kanban-container');
+  const list = document.getElementById('pipeline-list-container');
+  const bk = document.getElementById('btn-view-kanban');
+  const bl = document.getElementById('btn-view-list');
+  const on = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 shadow-sm transition-all';
+  const off = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-white transition-all';
+  if (view === 'kanban') { kan.classList.remove('hidden'); list.classList.add('hidden'); bk.className = on; bl.className = off; }
+  else { kan.classList.add('hidden'); list.classList.remove('hidden'); bl.className = on; bk.className = off; }
+  if (!silent) { save(); renderPipeline(); }
+}
+
+function clearFilters() {
+  document.getElementById('pipeline-search').value = '';
+  document.getElementById('pipeline-filter-rep').value = '';
+  document.getElementById('pipeline-filter-source').value = '';
+  renderPipeline();
+}
+
+function sortBy(key) {
+  const s = crmState.sort;
+  s.dir = (s.key === key && s.dir === 'asc') ? 'desc' : 'asc';
+  s.key = key;
+  save();
+  renderPipeline();
+}
+
+function getFilteredLeads(stageFilter) {
+  const q = document.getElementById('pipeline-search').value.trim().toLowerCase();
+  const rep = document.getElementById('pipeline-filter-rep').value;
+  const src = document.getElementById('pipeline-filter-source').value;
+  document.getElementById('clear-filters-btn').classList.toggle('hidden', !(q || rep || src));
+  return crmState.leads.filter(l => {
+    const hay = [l.name, l.company, l.email, l.source, l.assignee, l.notes].join(' ').toLowerCase();
+    return (!q || hay.includes(q)) && (!rep || l.assignee === rep) && (!src || l.source === src) && (!stageFilter || l.stage === stageFilter);
+  });
+}
+
+function sourceTone(source) {
+  const s = source || '';
+  if (s.includes('Meta')) return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-300';
+  if (s.includes('QR')) return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-300';
+  if (s.includes('Webhook')) return 'bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-300';
+  if (s.includes('TikTok')) return 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
+  if (s.includes('Google')) return 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300';
+  return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+}
+
+function scoreTone(n) {
+  if (n >= 70) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300';
+  if (n >= 40) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300';
+  return 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+}
+function scoreBadge(lead) {
+  if (lead.aiScore == null) return '<span class="text-[11px] text-slate-300 dark:text-slate-600">—</span>';
+  return `<span class="px-2 py-0.5 rounded-md font-bold text-[10px] ${scoreTone(lead.aiScore)}" title="${esc(lead.aiReason || '')}">${lead.aiScore}</span>`;
+}
+
+function initials(name) {
+  return String(name || '?').split(' ').filter(Boolean).slice(0,2).map(w => w[0].toUpperCase()).join('');
+}
+
+function renderPipeline(stageFilter) {
+  const leads = getFilteredLeads(stageFilter);
+
+  // Board
+  const wrap = document.getElementById('kanban-columns-wrapper');
+  wrap.innerHTML = '';
+  wrap.style.minWidth = (crmState.stages.length * 310) + 'px';
+  crmState.stages.forEach(stage => {
+    const stageLeads = leads.filter(l => l.stage === stage);
+    const total = stageLeads.reduce((a,l)=>a+(Number(l.value)||0),0);
+    const col = document.createElement('div');
+    col.className = 'w-[290px] flex-shrink-0 bg-slate-100/70 dark:bg-slate-800/60 rounded-2xl p-3 border border-slate-200/80 dark:border-slate-700/80 flex flex-col max-h-[calc(100vh-17rem)] transition-colors';
+    col.dataset.stage = stage;
+    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('col-drop'); });
+    col.addEventListener('dragleave', () => col.classList.remove('col-drop'));
+    col.addEventListener('drop', e => {
+      e.preventDefault();
+      col.classList.remove('col-drop');
+      const id = e.dataTransfer.getData('text/plain');
+      if (id) updateLeadStage(id, stage);
+    });
+
+    const cards = stageLeads.map(lead => `
+      <div class="lead-card bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-2.5 hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700 transition-all"
+           draggable="true" ondragstart="dragStart(event,'${lead.id}')" ondragend="dragEnd(event)" onclick="editLead('${lead.id}')">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <h4 class="font-bold text-xs text-slate-900 dark:text-white truncate">${esc(lead.name)}</h4>
+            <p class="text-[11px] text-slate-400 font-medium truncate">${esc(lead.company || '—')}</p>
+          </div>
+          <span class="font-bold text-xs text-slate-700 dark:text-slate-200 whitespace-nowrap">${compact(lead.value)}</span>
+        </div>
+        ${lead.notes ? `<p class="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">${esc(lead.notes)}</p>` : ''}
+        <div class="flex items-center justify-between gap-2 pt-1">
+          <span class="px-2 py-0.5 rounded-md font-semibold text-[10px] ${sourceTone(lead.source)} truncate">${esc(lead.source || '—')}</span>
+          ${lead.aiScore != null ? `<span class="px-1.5 py-0.5 rounded-md font-bold text-[10px] ${scoreTone(lead.aiScore)} shrink-0" title="${esc(lead.aiReason || '')}">${lead.aiScore}</span>` : ''}
+          <span class="w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-200 text-[9px] font-bold flex items-center justify-center shrink-0" title="${esc(lead.assignee || 'Unassigned')}">${initials(lead.assignee)}</span>
+        </div>
+      </div>`).join('');
+
+    col.innerHTML = `
+      <div class="flex items-center justify-between mb-3 px-1.5 shrink-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <h3 class="font-bold text-[11px] uppercase tracking-wider text-slate-700 dark:text-slate-200 truncate">${esc(stage)}</h3>
+          <span class="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold flex items-center justify-center shrink-0">${stageLeads.length}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] font-semibold text-slate-400">${compact(total)}</span>
+          <button onclick="event.stopPropagation();openLeadModalWithStage('${esc(stage).replace(/'/g,"\\'")}')" class="text-slate-400 hover:text-brand-600 text-xs p-1" title="Add lead here"><i class="fa-solid fa-plus"></i></button>
+        </div>
+      </div>
+      <div class="space-y-2.5 overflow-y-auto flex-1 pr-1 scroll-thin min-h-[80px]">
+        ${cards || '<div class="text-center py-8 text-[11px] text-slate-400 italic border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">Drop a lead here</div>'}
+      </div>`;
+    wrap.appendChild(col);
+  });
+
+  // List
+  const sorted = leads.slice().sort((a,b) => {
+    const k = crmState.sort.key, dir = crmState.sort.dir === 'asc' ? 1 : -1;
+    if (k === 'value') return ((Number(a.value)||0) - (Number(b.value)||0)) * dir;
+    if (k === 'aiScore') return ((a.aiScore ?? -1) - (b.aiScore ?? -1)) * dir;
+    return String(a[k]||'').localeCompare(String(b[k]||'')) * dir;
+  });
+  const tb = document.getElementById('list-view-tbody');
+  if (!sorted.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="p-10 text-center text-xs text-slate-400 italic">No leads match your filters.</td></tr>';
+  } else {
+    tb.innerHTML = sorted.map(lead => `
+      <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors">
+        <td class="p-4 font-semibold text-slate-900 dark:text-white">
+          ${esc(lead.name)}
+          <div class="text-[11px] text-slate-400 font-normal">${esc(lead.email || '—')}</div>
+        </td>
+        <td class="p-4 text-slate-600 dark:text-slate-300">${esc(lead.company || '—')}</td>
+        <td class="p-4 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">${formatCurrency(lead.value)}</td>
+        <td class="p-4"><span class="px-2 py-0.5 rounded-md font-semibold text-[10px] ${sourceTone(lead.source)}">${esc(lead.source || '—')}</span></td>
+        <td class="p-4">
+          <select onchange="updateLeadStage('${lead.id}', this.value)" class="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+            ${crmState.stages.map(st => `<option value="${esc(st)}" ${st === lead.stage ? 'selected' : ''}>${esc(st)}</option>`).join('')}
+          </select>
+        </td>
+        <td class="p-4">${scoreBadge(lead)}</td>
+        <td class="p-4 text-slate-600 dark:text-slate-300 whitespace-nowrap">${esc(lead.assignee || 'Unassigned')}</td>
+        <td class="p-4">
+          <div class="flex items-center gap-1 justify-end">
+            <button data-ai-only onclick="scoreLead('${lead.id}')" class="hidden text-slate-400 hover:text-brand-600 p-1.5" title="Score with AI"><i class="fa-solid fa-wand-magic-sparkles text-xs"></i></button>
+            <button data-ai-only onclick="draftFollowUp('${lead.id}')" class="hidden text-slate-400 hover:text-brand-600 p-1.5" title="Draft a follow-up email"><i class="fa-solid fa-envelope text-xs"></i></button>
+            <button onclick="editLead('${lead.id}')" class="text-slate-400 hover:text-brand-600 p-1.5" title="Edit"><i class="fa-solid fa-pen text-xs"></i></button>
+            <button onclick="deleteLead('${lead.id}')" class="text-slate-400 hover:text-rose-600 p-1.5" title="Delete"><i class="fa-solid fa-trash text-xs"></i></button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+}
+
+function dragStart(e, id) { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.classList.add('dragging'); }
+function dragEnd(e) { e.currentTarget.classList.remove('dragging'); }
+
+function updateLeadStage(leadId, newStage) {
+  const lead = crmState.leads.find(l => l.id === leadId);
+  if (!lead || lead.stage === newStage) return;
+  const old = lead.stage;
+  lead.stage = newStage;
+  refreshAllUI();
+  cloudUpdateLead(lead);
+  showToast(`${lead.name} → ${newStage}`, 'success', { label: 'Undo', fn: () => { lead.stage = old; refreshAllUI(); cloudUpdateLead(lead); } });
+  if (isWon(newStage) && !isWon(old)) triggerConversionPostback(lead);
+}
+
+function triggerConversionPostback(lead) {
+  setTimeout(() => showToast(`Meta CAPI: Purchase event fired (${compact(lead.value)})`, 'info'), 700);
+  setTimeout(() => showToast('Google Ads & GA4: offline conversion pushed', 'info'), 1500);
+}
+
+/* ---------------- Lead CRUD ---------------- */
+function openLeadModal() {
+  document.getElementById('lead-modal-title').innerText = 'Add lead';
+  document.getElementById('lead-form').reset();
+  document.getElementById('lead-id').value = '';
+  populateDropdowns();
+  document.getElementById('lead-stage').value = crmState.stages[0];
+  document.getElementById('lead-value').value = 5000;
+  document.getElementById('lead-delete-btn').classList.add('hidden');
+  showModal('lead-modal');
+  setTimeout(() => document.getElementById('lead-name').focus(), 50);
+}
+function openLeadModalWithStage(stage) { openLeadModal(); document.getElementById('lead-stage').value = stage; }
+
+function editLead(leadId) {
+  const lead = crmState.leads.find(l => l.id === leadId);
+  if (!lead) return;
+  populateDropdowns();
+  document.getElementById('lead-modal-title').innerText = 'Edit lead';
+  document.getElementById('lead-id').value = lead.id;
+  document.getElementById('lead-name').value = lead.name || '';
+  document.getElementById('lead-company').value = lead.company || '';
+  document.getElementById('lead-email').value = lead.email || '';
+  document.getElementById('lead-phone').value = lead.phone || '';
+  document.getElementById('lead-value').value = Number(lead.value) || 0;
+  document.getElementById('lead-stage').value = lead.stage;
+  document.getElementById('lead-source').value = lead.source || getSources()[0];
+  document.getElementById('lead-assignee').value = lead.assignee || 'Unassigned';
+  document.getElementById('lead-notes').value = lead.notes || '';
+  document.getElementById('lead-delete-btn').classList.remove('hidden');
+  showModal('lead-modal');
+}
+
+function closeLeadModal() { hideModal('lead-modal'); }
+
+function saveLead(e) {
+  e.preventDefault();
+  const id = document.getElementById('lead-id').value;
+  const data = {
+    name: document.getElementById('lead-name').value.trim(),
+    company: document.getElementById('lead-company').value.trim(),
+    email: document.getElementById('lead-email').value.trim(),
+    phone: document.getElementById('lead-phone').value.trim(),
+    value: Number(document.getElementById('lead-value').value) || 0,
+    stage: document.getElementById('lead-stage').value,
+    source: document.getElementById('lead-source').value,
+    assignee: document.getElementById('lead-assignee').value,
+    notes: document.getElementById('lead-notes').value.trim()
+  };
+  if (id) {
+    const lead = crmState.leads.find(l => l.id === id);
+    const wasWon = lead && isWon(lead.stage);
+    Object.assign(lead, data);
+    cloudUpdateLead(lead);
+    showToast(`${data.name} updated`, 'success');
+    if (!wasWon && isWon(data.stage)) triggerConversionPostback(lead);
+  } else {
+    const temp = Object.assign({ id: 'tmp_' + Date.now(), createdAt: Date.now() }, data);
+    crmState.leads.unshift(temp);
+    cloudInsertLeads([temp]).then(() => refreshAllUI());
+    showToast(`${data.name} added to ${data.stage}`, 'success');
+  }
+  closeLeadModal();
+  refreshAllUI();
+}
+
+function deleteLeadFromModal() {
+  const id = document.getElementById('lead-id').value;
+  closeLeadModal();
+  deleteLead(id);
+}
+
+function deleteLead(leadId) {
+  const idx = crmState.leads.findIndex(l => l.id === leadId);
+  if (idx === -1) return;
+  const [removed] = crmState.leads.splice(idx, 1);
+  refreshAllUI();
+  cloudDeleteLeads([removed.id]);
+  showToast(`${removed.name} deleted`, 'info', { label: 'Undo', fn: async () => {
+    crmState.leads.splice(idx, 0, removed);
+    refreshAllUI();
+    await cloudInsertLeads([removed]);   // comes back with a fresh id
+    refreshAllUI();
+    showToast('Restored', 'success');
+  }});
+}
+
+function simulateIncomingLead() {
+  const active = crmState.integrations.filter(i => i.on);
+  if (!active.length) {
+    showToast('No active integrations to receive from', 'error', { label: 'Add one', fn: () => { switchTab('integrations'); openIntegrationModal(); } });
+    return;
+  }
+  const integration = active[Math.floor(Math.random()*active.length)];
+  const lead = makeInboundLead(integration);
+  crmState.leads.unshift(lead);
+  refreshAllUI();
+  cloudInsertLeads([lead]).then(saved => {
+    refreshAllUI();
+    if (!document.getElementById('tab-integrations').classList.contains('hidden')) renderIntegrations();
+    const id = (saved[0] && saved[0].id) || lead.id;
+    showToast(`Inbound via ${integration.name}: ${lead.name}`, 'success', { label: 'View', fn: () => { switchTab('pipeline'); editLead(id); } });
+  });
+}
+
+/* ---------------- CSV ---------------- */
+function exportCSV() {
+  const headers = ['name','company','email','phone','value','stage','source','owner','notes'];
+  const rows = crmState.leads.map(l => [l.name,l.company,l.email,l.phone,l.value,l.stage,l.source,l.assignee,l.notes]
+    .map(v => '"' + String(v == null ? '' : v).replace(/"/g,'""') + '"').join(','));
+  const blob = new Blob([headers.join(',') + '\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'leads-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast(`Exported ${crmState.leads.length} leads`, 'success');
+}
+
+function parseCSV(text) {
+  const rows = []; let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i+1] === '"') { field += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else if (c !== '\r') field += c;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+
+function parseDelimited(text) {
+  // Tab-separated files are common exports; detect from the header line
+  const firstLine = text.split(/\r?\n/)[0] || '';
+  if (firstLine.includes('\t') && !firstLine.includes(',')) {
+    return text.split(/\r?\n/).map(l => l.split('\t')).filter(r => r.some(c => c.trim() !== ''));
+  }
+  return parseCSV(text);
+}
+
+/* ---------------- Spreadsheet import (xlsx / xls / ods / csv / tsv) ---------------- */
+const CRM_FIELDS = [
+  { key:'name',    label:'Lead name',  required:true,  aliases:['name','full name','lead','lead name','contact','contact name','first name','customer'] },
+  { key:'company', label:'Company',    required:false, aliases:['company','organisation','organization','business','account','company name'] },
+  { key:'email',   label:'Email',      required:false, aliases:['email','email address','e-mail','mail'] },
+  { key:'phone',   label:'Phone',      required:false, aliases:['phone','phone number','mobile','contact number','tel','telephone','whatsapp'] },
+  { key:'value',   label:'Deal value', required:false, aliases:['value','deal value','budget','amount','revenue','price','deal size'] },
+  { key:'stage',   label:'Stage',      required:false, aliases:['stage','status','pipeline stage'] },
+  { key:'source',  label:'Source',     required:false, aliases:['source','channel','lead source','campaign'] },
+  { key:'owner',   label:'Owner',      required:false, aliases:['owner','assignee','rep','assigned rep','sales rep','salesperson','assigned to'] },
+  { key:'notes',   label:'Notes',      required:false, aliases:['notes','comments','note','remarks','message','description'] }
+];
+
+let importCtx = null; // { fileName, sheets:{name:rows}, rows, headers, mapping, origin }
+
+/* Reads a money cell the way a person wrote it: "Rs. 45,000", "$1,234.56", "1.234,56", "12000". */
+function parseAmount(raw) {
+  if (typeof raw === 'number') return isFinite(raw) ? raw : 0;
+  let s = String(raw == null ? '' : raw).replace(/[^\d.,\-]/g, '');
+  s = s.replace(/^[.,]+/, '').replace(/[.,]+$/, '');
+  if (!s) return 0;
+  const neg = s.indexOf('-') === 0;
+  s = s.replace(/-/g, '');
+  const lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.');
+  let dec = -1;
+  if (lastComma > -1 && lastDot > -1) {
+    dec = Math.max(lastComma, lastDot);                       // whichever comes last is the decimal mark
+  } else if (lastComma > -1) {
+    dec = (s.split(',').length === 2 && s.length - lastComma - 1 !== 3) ? lastComma : -1;
+  } else if (lastDot > -1) {
+    dec = (s.split('.').length === 2 && s.length - lastDot - 1 !== 3) ? lastDot : -1;
+  }
+  const intPart = (dec > -1 ? s.slice(0, dec) : s).replace(/[.,]/g, '');
+  const fracPart = (dec > -1 ? s.slice(dec + 1) : '').replace(/[.,]/g, '');
+  const n = Number(intPart + (fracPart ? '.' + fracPart : '')) || 0;
+  return neg ? -n : n;
+}
+
+function handleSpreadsheetFile() {
+  const input = document.getElementById('lead-file-upload');
+  if (!input.files || !input.files.length) { showToast('Choose a spreadsheet file first', 'error'); return; }
+  const file = input.files[0];
+  const name = file.name.toLowerCase();
+  const isText = /\.(csv|tsv|txt)$/.test(name);
+  const reader = new FileReader();
+
+  reader.onerror = () => showToast('Could not read that file', 'error');
+  reader.onload = () => {
+    try {
+      let sheets = {};
+      if (isText && typeof XLSX === 'undefined') {
+        sheets['Sheet1'] = parseDelimited(String(reader.result));
+      } else if (typeof XLSX === 'undefined') {
+        showToast('Spreadsheet reader unavailable — save the file as CSV and try again', 'error');
+        return;
+      } else {
+        const wb = isText
+          ? XLSX.read(String(reader.result), { type: 'string' })
+          : XLSX.read(new Uint8Array(reader.result), { type: 'array' });
+        wb.SheetNames.forEach(sn => {
+          sheets[sn] = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, blankrows: false, defval: '' })
+            .map(r => r.map(c => (c == null ? '' : String(c))))
+            .filter(r => r.some(c => String(c).trim() !== ''));
+        });
+      }
+      openImportModal(file.name, sheets, 'Spreadsheet Import');
+    } catch (err) {
+      showToast('Could not parse that file — is it a real spreadsheet?', 'error');
+    }
+  };
+  if (isText) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+}
+
+function guessMapping(headers) {
+  const norm = headers.map(h => String(h).trim().toLowerCase());
+  const used = new Set();
+  const mapping = {};
+  CRM_FIELDS.forEach(f => {
+    let idx = -1;
+    for (const a of f.aliases) { const i = norm.indexOf(a); if (i > -1 && !used.has(i)) { idx = i; break; } }
+    if (idx === -1) {
+      for (let i = 0; i < norm.length; i++) {
+        if (used.has(i) || !norm[i]) continue;
+        if (f.aliases.some(a => norm[i].includes(a))) { idx = i; break; }
+      }
+    }
+    if (idx > -1) used.add(idx);
+    mapping[f.key] = idx;
+  });
+  return mapping;
+}
+
+function openImportModal(fileName, sheets, defaultSource) {
+  const names = Object.keys(sheets).filter(n => sheets[n].length);
+  if (!names.length) { showToast('That file has no readable rows', 'error'); return; }
+  importCtx = { fileName, sheets, sheetName: names[0], origin: defaultSource };
+  populateDropdowns();
+  const picker = document.getElementById('import-sheet-picker');
+  document.getElementById('import-sheet-picker-wrap').classList.toggle('hidden', names.length < 2);
+  picker.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)} (${sheets[n].length - 1} rows)</option>`).join('');
+  picker.value = importCtx.sheetName;
+  document.getElementById('import-source').value = defaultSource || 'Spreadsheet Import';
+  document.getElementById('import-stage').value = crmState.stages[0];
+  document.getElementById('import-owner').value = '';
+  selectImportSheet(importCtx.sheetName);
+  showModal('import-modal');
+}
+
+function selectImportSheet(sheetName) {
+  const rows = importCtx.sheets[sheetName] || [];
+  importCtx.sheetName = sheetName;
+  importCtx.headers = (rows[0] || []).map(h => String(h).trim());
+  importCtx.rows = rows.slice(1);
+  importCtx.mapping = guessMapping(importCtx.headers);
+  document.getElementById('import-file-info').innerText =
+    `${importCtx.fileName} · ${sheetName} · ${importCtx.rows.length} data row${importCtx.rows.length === 1 ? '' : 's'}`;
+  renderMappingUI();
+  renderImportPreview();
+}
+
+function renderMappingUI() {
+  const opts = (sel) => '<option value="-1">— not imported —</option>' +
+    importCtx.headers.map((h, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(h || 'Column ' + (i+1))}</option>`).join('');
+  document.getElementById('import-mapping').innerHTML = CRM_FIELDS.map(f => `
+    <div>
+      <label class="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">${f.label}${f.required ? ' <span class="text-rose-500">*</span>' : ''}</label>
+      <select onchange="setMapping('${f.key}', this.value)" class="w-full bg-slate-50 dark:bg-slate-900/50 border ${f.required && importCtx.mapping[f.key] === -1 ? 'border-rose-400' : 'border-slate-200 dark:border-slate-700'} rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
+        ${opts(importCtx.mapping[f.key])}
+      </select>
+    </div>`).join('');
+}
+
+function setMapping(key, idx) {
+  importCtx.mapping[key] = Number(idx);
+  renderMappingUI();
+  renderImportPreview();
+}
+
+function buildRowLead(r, i, opts) {
+  const m = importCtx.mapping;
+  const cell = k => (m[k] > -1 && r[m[k]] != null) ? String(r[m[k]]).trim() : '';
+  const nm = cell('name');
+  if (!nm) return null;
+  const rawStage = cell('stage');
+  return {
+    id: 'tmp_' + Date.now() + '_' + i,
+    name: nm,
+    company: cell('company'),
+    email: cell('email'),
+    phone: cell('phone'),
+    value: parseAmount(cell('value')),
+    stage: crmState.stages.includes(rawStage) ? rawStage : opts.stage,
+    source: cell('source') || opts.source,
+    assignee: cell('owner') || opts.owner || 'Unassigned',
+    notes: cell('notes'),
+    createdAt: Date.now()
+  };
+}
+
+function leadKey(l) {
+  const e = (l.email || '').trim().toLowerCase();
+  return e ? 'e:' + e : 'n:' + (l.name || '').trim().toLowerCase() + '|' + (l.company || '').trim().toLowerCase();
+}
+
+function renderImportPreview() {
+  const opts = { source: 'Preview', stage: crmState.stages[0], owner: '' };
+  const fields = CRM_FIELDS.filter(f => importCtx.mapping[f.key] > -1);
+  document.getElementById('import-preview-head').innerHTML =
+    '<tr>' + fields.map(f => `<th class="p-2.5 font-semibold whitespace-nowrap">${f.label}</th>`).join('') + '</tr>';
+  const sample = importCtx.rows.slice(0, 4).map((r, i) => buildRowLead(r, i, opts)).filter(Boolean);
+  document.getElementById('import-preview-body').innerHTML = sample.length
+    ? sample.map(l => '<tr>' + fields.map(f => {
+        const v = f.key === 'owner' ? l.assignee : l[f.key];
+        return `<td class="p-2.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">${esc(f.key === 'value' ? formatCurrency(v) : (v || '—'))}</td>`;
+      }).join('') + '</tr>').join('')
+    : '<tr><td class="p-4 text-slate-400 italic">No rows can be read with this mapping — check the lead name column.</td></tr>';
+  const valid = importCtx.rows.filter((r, i) => buildRowLead(r, i, opts)).length;
+  document.getElementById('import-count-note').innerText =
+    `${valid} of ${importCtx.rows.length} rows have a lead name`;
+}
+
+function runImport() {
+  if (!importCtx) return;
+  if (importCtx.mapping.name === -1) { showToast('Pick which column holds the lead name', 'error'); return; }
+  const opts = {
+    source: document.getElementById('import-source').value.trim() || 'Spreadsheet Import',
+    stage: document.getElementById('import-stage').value || crmState.stages[0],
+    owner: document.getElementById('import-owner').value
+  };
+  const skipDupes = document.getElementById('import-skip-dupes').checked;
+  const existing = new Set(crmState.leads.map(leadKey));
+  const added = [];
+  let skipped = 0;
+  importCtx.rows.forEach((r, i) => {
+    const lead = buildRowLead(r, i, opts);
+    if (!lead) return;
+    const k = leadKey(lead);
+    if (skipDupes && existing.has(k)) { skipped++; return; }
+    existing.add(k);
+    added.push(lead);
+  });
+  if (!added.length) {
+    showToast(skipped ? `Nothing new — ${skipped} row(s) already in your pipeline` : 'No rows could be imported', skipped ? 'info' : 'error');
+    hideModal('import-modal');
+    return;
+  }
+  crmState.leads = added.concat(crmState.leads);
+  document.getElementById('lead-file-upload').value = '';
+  hideModal('import-modal');
+  refreshAllUI();
+  const msg = `Imported ${added.length} lead${added.length === 1 ? '' : 's'}` + (skipped ? ` · ${skipped} duplicate${skipped === 1 ? '' : 's'} skipped` : '');
+  let savedBatch = added;
+  cloudInsertLeads(added).then(saved => { if (saved.length) savedBatch = saved; refreshAllUI(); });
+  showToast(msg, 'success', { label: 'Undo', fn: () => {
+    const ids = new Set(savedBatch.map(l => l.id));
+    crmState.leads = crmState.leads.filter(l => !ids.has(l.id));
+    cloudDeleteLeads([...ids]);
+    refreshAllUI();
+    showToast('Import reverted', 'info');
+  }});
+  importCtx = null;
+}
+
+/* ---------------- Linked Google Sheets / Excel Online ---------------- */
+function detectSheetSource(url) {
+  const u = String(url || '').trim();
+  if (/docs\.google\.com\/spreadsheets/.test(u)) {
+    if (/\/pub\?|\/pub$|output=csv/.test(u)) return { provider:'Google Sheets', icon:'fa-solid fa-table', tone:'emerald', fetchUrl: u.includes('output=csv') ? u : u + (u.includes('?') ? '&' : '?') + 'output=csv', binary:false };
+    const id = (u.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/) || [])[1];
+    const gid = (u.match(/[#&?]gid=([0-9]+)/) || [])[1] || '0';
+    if (id) return { provider:'Google Sheets', icon:'fa-solid fa-table', tone:'emerald', fetchUrl:`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}`, binary:false };
+  }
+  if (/sharepoint\.com|onedrive\.live\.com|1drv\.ms|office\.com/.test(u)) {
+    const sep = u.includes('?') ? '&' : '?';
+    return { provider:'Excel Online', icon:'fa-solid fa-file-excel', tone:'teal', fetchUrl: /download=1/.test(u) ? u : u + sep + 'download=1', binary:true };
+  }
+  if (/\.(xlsx|xlsm|xls|ods)(\?|$)/i.test(u)) return { provider:'Excel file URL', icon:'fa-solid fa-file-excel', tone:'teal', fetchUrl:u, binary:true };
+  if (/\.(csv|tsv)(\?|$)/i.test(u)) return { provider:'CSV URL', icon:'fa-solid fa-file-csv', tone:'sky', fetchUrl:u, binary:false };
+  if (u) return { provider:'Direct URL', icon:'fa-solid fa-link', tone:'sky', fetchUrl:u, binary:true };
+  return null;
+}
+
+function detectSheetProvider() {
+  const info = detectSheetSource(document.getElementById('sheet-url').value);
+  const note = document.getElementById('sheet-provider-note');
+  const box = document.getElementById('sheet-icon-preview');
+  if (!info) { note.innerText = ''; return; }
+  box.className = 'w-12 h-12 rounded-xl flex items-center justify-center text-xl ' + (TONES[info.tone] || TONES.slate);
+  box.innerHTML = `<i class="${info.icon}"></i>`;
+  note.innerHTML = `Detected: <strong>${esc(info.provider)}</strong>`;
+  const nameEl = document.getElementById('sheet-name');
+  const srcEl = document.getElementById('sheet-source');
+  if (!nameEl.value.trim()) nameEl.value = info.provider;
+  if (!srcEl.value.trim()) srcEl.value = info.provider === 'Google Sheets' ? 'Google Sheet' : 'Spreadsheet';
+}
+
+function openSheetLinkModal(id) {
+  populateDropdowns();
+  const s = id ? crmState.sheetLinks.find(x => x.id === id) : null;
+  document.getElementById('sheet-modal-title').innerText = s ? 'Edit linked sheet' : 'Link a sheet';
+  document.getElementById('sheet-id').value = s ? s.id : '';
+  document.getElementById('sheet-url').value = s ? s.url : '';
+  document.getElementById('sheet-name').value = s ? s.name : '';
+  document.getElementById('sheet-source').value = s ? s.sourceTag : '';
+  document.getElementById('sheet-stage').value = s ? (s.defaultStage || crmState.stages[0]) : crmState.stages[0];
+  document.getElementById('sheet-owner').value = s ? (s.defaultOwner || '') : '';
+  document.getElementById('sheet-skip-dupes').checked = s ? s.skipDupes !== false : true;
+  detectSheetProvider();
+  showModal('sheet-link-modal');
+}
+
+async function saveSheetLink(e) {
+  e.preventDefault();
+  const url = document.getElementById('sheet-url').value.trim();
+  const info = detectSheetSource(url);
+  if (!info) { showToast('That URL doesn\'t look like a spreadsheet link', 'error'); return; }
+  const id = document.getElementById('sheet-id').value;
+  const data = {
+    name: document.getElementById('sheet-name').value.trim() || info.provider,
+    url,
+    provider: info.provider,
+    sourceTag: document.getElementById('sheet-source').value.trim() || 'Spreadsheet',
+    defaultStage: document.getElementById('sheet-stage').value,
+    defaultOwner: document.getElementById('sheet-owner').value,
+    skipDupes: document.getElementById('sheet-skip-dupes').checked
+  };
+  hideModal('sheet-link-modal');
+  let sheetId;
+  if (id) {
+    Object.assign(crmState.sheetLinks.find(x => x.id === id), data);
+    sheetId = id;
+    if (cloudReady()) { beginWrite(); try { await apiCall('PATCH', '/sheets/' + id, data); endWrite(); } catch (err) { endWrite(err); } }
+  } else if (cloudReady()) {
+    beginWrite();
+    let row;
+    try { row = (await apiCall('POST', '/sheets', data)).sheet; endWrite(); }
+    catch (err) { endWrite(err); showToast('Could not save the link: ' + err.message, 'error'); return; }
+    crmState.sheetLinks.push(row);
+    sheetId = row.id;
+  } else {
+    sheetId = 'sheet_' + Date.now();
+    crmState.sheetLinks.push(Object.assign({ id: sheetId, lastSync: null }, data));
+  }
+  refreshAllUI();
+  renderSheetLinks();
+  syncSheetLink(sheetId);
+}
+
+async function deleteSheetLink(id) {
+  const s = crmState.sheetLinks.find(x => x.id === id);
+  if (!s) return;
+  const ok = await confirmDialog('Remove linked sheet?', `"${s.name}" stops syncing. Leads already imported stay in your pipeline.`);
+  if (!ok) return;
+  const idx = crmState.sheetLinks.findIndex(x => x.id === id);
+  crmState.sheetLinks.splice(idx, 1);
+  refreshAllUI();
+  renderSheetLinks();
+  if (cloudReady()) { beginWrite(); try { await apiCall('DELETE', '/sheets/' + id); endWrite(); } catch (err) { endWrite(err); } }
+  showToast(`${s.name} unlinked`, 'info', { label: 'Undo', fn: async () => {
+    if (cloudReady()) {
+      try { const { sheet } = await apiCall('POST', '/sheets', s); crmState.sheetLinks.splice(idx, 0, sheet); } catch { /* undo failed */ }
+    } else { crmState.sheetLinks.splice(idx, 0, s); }
+    refreshAllUI(); renderSheetLinks();
+  }});
+}
+
+async function syncSheetLink(id) {
+  const s = crmState.sheetLinks.find(x => x.id === id);
+  if (!s) return;
+  showToast(`Fetching ${s.name}…`, 'info');
+  try {
+    // The server fetches it for us and reports a readable reason on failure.
+    const res = await fetch('/api/sheets/' + s.id + '/fetch', { credentials: 'same-origin' });
+    if (!res.ok) {
+      let why = 'HTTP ' + res.status;
+      try { const j = await res.json(); if (j && j.error) why = j.error; } catch {}
+      throw new Error(why);
+    }
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const isZip = bytes[0] === 0x50 && bytes[1] === 0x4B;           // .xlsx
+    const isOldXls = bytes[0] === 0xD0 && bytes[1] === 0xCF;        // .xls
+    let sheets = {};
+    if (isZip || isOldXls) {
+      if (typeof XLSX === 'undefined') throw new Error('no-xlsx');
+      const wb = XLSX.read(bytes, { type: 'array' });
+      wb.SheetNames.forEach(sn => {
+        sheets[sn] = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, blankrows: false, defval: '' })
+          .map(r => r.map(c => (c == null ? '' : String(c)))).filter(r => r.some(c => String(c).trim() !== ''));
+      });
+    } else {
+      const text = new TextDecoder('utf-8').decode(bytes);
+      if (/^\s*<(!doctype|html)/i.test(text)) throw new Error('html');
+      sheets['Sheet1'] = parseDelimited(text);
+    }
+    s.lastSync = Date.now();
+    renderSheetLinks();
+    openImportModal(s.name, sheets, s.sourceTag);
+    document.getElementById('import-stage').value = s.defaultStage || crmState.stages[0];
+    document.getElementById('import-owner').value = s.defaultOwner || '';
+    document.getElementById('import-skip-dupes').checked = s.skipDupes !== false;
+    if (cloudReady()) { try { await apiCall('PATCH', '/sheets/' + s.id, { lastSync: Date.now(), lastError: null }); } catch { /* cosmetic */ } }
+  } catch (err) {
+    const why = err.message === 'no-xlsx'
+      ? 'the spreadsheet reader did not load'
+      : err.message;
+    showToast(`Couldn't sync ${s.name} — ${why}`, 'error', { label: 'Open sheet', fn: () => window.open(s.url, '_blank') });
+    s.lastError = why;
+    renderSheetLinks();
+    if (cloudReady()) { try { await apiCall('PATCH', '/sheets/' + s.id, { lastError: why }); } catch { /* cosmetic */ } }
+  }
+}
+
+function renderSheetLinks() {
+  const box = document.getElementById('sheet-links-list');
+  if (!box) return;
+  if (!crmState.sheetLinks.length) {
+    box.innerHTML = `<div class="text-center py-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+      <p class="text-xs text-slate-400">No linked sheets yet. Paste a Google Sheets or Excel Online URL to pull leads from it.</p>
+    </div>`;
+    return;
+  }
+  box.innerHTML = crmState.sheetLinks.map(s => {
+    const info = detectSheetSource(s.url) || { icon:'fa-solid fa-link', tone:'sky' };
+    const when = s.lastSync ? new Date(s.lastSync).toLocaleString() : 'never';
+    return `
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl ${TONES[info.tone] || TONES.sky} flex items-center justify-center shrink-0"><i class="${info.icon}"></i></div>
+        <div class="min-w-0">
+          <h5 class="font-bold text-xs text-slate-900 dark:text-white truncate">${esc(s.name)}</h5>
+          <p class="text-[11px] text-slate-400 truncate">${esc(s.provider)} · tags as ${esc(s.sourceTag)} · last sync: ${esc(when)}</p>
+          ${s.lastError ? `<p class="text-[11px] text-rose-500 mt-0.5">Last attempt failed — ${esc(s.lastError)}</p>` : ''}
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button onclick="syncSheetLink('${s.id}')" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-medium"><i class="fa-solid fa-rotate mr-1"></i> Sync</button>
+        <button onclick="window.open('${esc(s.url)}','_blank')" class="px-2.5 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs" title="Open sheet"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+        <button onclick="openSheetLinkModal('${s.id}')" class="px-2.5 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs" title="Edit"><i class="fa-solid fa-pen"></i></button>
+        <button onclick="deleteSheetLink('${s.id}')" class="px-2.5 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-400 hover:text-rose-600 rounded-lg text-xs" title="Unlink"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------------- Integrations ---------------- */
+function sysMeta(system) { return SYSTEMS[system] || SYSTEMS['Other']; }
+
+/* The live endpoint ad platforms post to — one per connector, token included */
+function webhookUrlFor(i) {
+  if (!i.webhookToken) return '';
+  return `${location.origin}/hook/${i.webhookToken}`;
+}
+function findIntegration(id) { return crmState.integrations.find(i => i.id === id); }
+
+function renderIntegrations() {
+  const grid = document.getElementById('integrations-grid');
+  if (!crmState.integrations.length) {
+    grid.innerHTML = `<div class="md:col-span-2 text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+      <p class="text-xs text-slate-400 mb-3">No integrations yet.</p>
+      <button onclick="openIntegrationModal()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold">Add your first integration</button>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = crmState.integrations.map(i => {
+    const m = sysMeta(i.system);
+    const hook = webhookUrlFor(i);
+    return `
+    <div class="p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col justify-between gap-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-12 h-12 rounded-xl ${TONES[m.tone] || TONES.slate} flex items-center justify-center text-xl shrink-0"><i class="${m.icon}"></i></div>
+          <div class="min-w-0">
+            <h4 class="font-bold text-sm text-slate-900 dark:text-white truncate">${esc(i.name)}</h4>
+            <p class="text-xs text-slate-400 truncate">${esc(i.desc || i.system)}</p>
+          </div>
+        </div>
+        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap ${i.on ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}">${i.on ? 'Connected' : 'Inactive'}</span>
+      </div>
+
+      <div class="text-xs text-slate-500 dark:text-slate-400 space-y-1.5">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-[10px] font-semibold">${esc(i.method)}</span>
+          <span class="px-2 py-0.5 rounded-md ${sourceTone(i.sourceTag)} text-[10px] font-semibold">Tags as ${esc(i.sourceTag || 'Unknown')}</span>
+          ${i.defaultOwner ? `<span class="px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-[10px] font-semibold">→ ${esc(i.defaultOwner)}</span>` : ''}
+        </div>
+        ${hook ? `<div>
+          <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Paste this into ${esc(i.system)}</p>
+          <code class="block bg-slate-200 dark:bg-slate-800 px-2 py-1.5 rounded text-[10px] break-all leading-relaxed">${esc(hook)}</code>
+        </div>` : `<p class="truncate"><code class="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[11px]">${esc(i.endpoint || 'No endpoint')}</code></p>`}
+        <p class="text-[11px]">${crmState.leads.filter(l => l.source === i.sourceTag).length} leads attributed${i.receivedCount ? ` · ${i.receivedCount} received via webhook` : ''}</p>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-700 gap-2">
+        <button onclick="toggleIntegration('${i.id}')" class="text-xs font-semibold ${i.on ? 'text-rose-600 hover:text-rose-700' : 'text-emerald-600 hover:text-emerald-700'}">${i.on ? 'Disconnect' : 'Connect'}</button>
+        <div class="flex items-center gap-1.5">
+          <button onclick="testIntegration('${i.id}')" class="px-2.5 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-medium" title="Send a test lead through this connector">Test</button>
+          <button onclick="copyText('${esc(hook || i.endpoint || '')}','Webhook URL copied')" class="px-2.5 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs" title="Copy webhook URL"><i class="fa-solid fa-link"></i></button>
+          <button onclick="openIntegrationModal('${i.id}')" class="px-2.5 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs" title="Edit"><i class="fa-solid fa-pen"></i></button>
+          <button onclick="deleteIntegration('${i.id}')" class="px-2.5 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-400 hover:text-rose-600 rounded-lg text-xs" title="Remove"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleIntegration(id) {
+  const i = findIntegration(id);
+  if (!i) return;
+  i.on = !i.on;
+  refreshAllUI();
+  renderIntegrations();
+  if (cloudReady()) { beginWrite(); try { await apiCall('PATCH', '/integrations/' + i.id, { on: i.on }); endWrite(); } catch (err) { endWrite(err); } }
+  showToast(`${i.name} ${i.on ? 'connected' : 'disconnected'}`, i.on ? 'success' : 'info');
+}
+
+function openIntegrationModal(id) {
+  populateDropdowns();
+  const i = id ? findIntegration(id) : null;
+  document.getElementById('int-modal-title').innerText = i ? 'Edit integration' : 'Add integration';
+  document.getElementById('int-id').value = i ? i.id : '';
+  document.getElementById('int-system').value = i ? (SYSTEMS[i.system] ? i.system : 'Other') : 'Google Ads';
+  document.getElementById('int-name').value = i ? i.name : '';
+  document.getElementById('int-desc').value = i ? (i.desc || '') : '';
+  document.getElementById('int-method').value = i ? i.method : 'Webhook';
+  document.getElementById('int-endpoint').value = i ? (i.endpoint || '') : '';
+  document.getElementById('int-key').value = i ? (i.apiKey || '') : '';
+  document.getElementById('int-source').value = i ? (i.sourceTag || '') : '';
+  document.getElementById('int-stage').value = i ? (i.defaultStage || '') : '';
+  document.getElementById('int-owner').value = i ? (i.defaultOwner || '') : '';
+  document.getElementById('int-active').checked = i ? !!i.on : true;
+  if (!i) applySystemPreset(true);
+  syncIntegrationIcon();
+  showModal('integration-modal');
+  setTimeout(() => document.getElementById('int-name').focus(), 50);
+}
+
+function applySystemPreset(force) {
+  const system = document.getElementById('int-system').value;
+  const m = sysMeta(system);
+  const nameEl = document.getElementById('int-name');
+  const srcEl = document.getElementById('int-source');
+  const methodEl = document.getElementById('int-method');
+  const epEl = document.getElementById('int-endpoint');
+  if (force || !nameEl.value.trim()) nameEl.value = system === 'Other' ? '' : system;
+  if (force || !srcEl.value.trim()) srcEl.value = m.source;
+  if (force || !methodEl.value) methodEl.value = m.method;
+  if (force || !epEl.value.trim()) epEl.value = 'https://api.omnileads.io/v1/hook/' + (slugify(nameEl.value || system) || 'custom');
+  syncIntegrationIcon();
+}
+
+function syncIntegrationIcon() {
+  const m = sysMeta(document.getElementById('int-system').value);
+  const box = document.getElementById('int-icon-preview');
+  box.className = 'w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 ' + (TONES[m.tone] || TONES.slate);
+  box.innerHTML = `<i class="${m.icon}"></i>`;
+}
+
+async function saveIntegration(e) {
+  e.preventDefault();
+  const id = document.getElementById('int-id').value;
+  const name = document.getElementById('int-name').value.trim();
+  if (!name) { showToast('Give the integration a name', 'error'); return; }
+  const data = {
+    name,
+    system: document.getElementById('int-system').value,
+    desc: document.getElementById('int-desc').value.trim(),
+    method: document.getElementById('int-method').value,
+    endpoint: document.getElementById('int-endpoint').value.trim(),
+    apiKey: document.getElementById('int-key').value.trim(),
+    sourceTag: document.getElementById('int-source').value.trim() || name,
+    defaultStage: document.getElementById('int-stage').value,
+    defaultOwner: document.getElementById('int-owner').value,
+    on: document.getElementById('int-active').checked
+  };
+  hideModal('integration-modal');
+  if (id) {
+    Object.assign(findIntegration(id), data);
+    refreshAllUI(); renderIntegrations();
+    showToast(`${name} updated`, 'success');
+    if (cloudReady()) { beginWrite(); try { await apiCall('PATCH', '/integrations/' + id, data); endWrite(); } catch (err) { endWrite(err); showToast('Could not save: ' + err.message, 'error'); } }
+  } else if (cloudReady()) {
+    beginWrite();
+    let row;
+    try { row = (await apiCall('POST', '/integrations', data)).integration; endWrite(); }
+    catch (err) { endWrite(err); showToast('Could not save the connector: ' + err.message, 'error'); return; }
+    crmState.integrations.push(row);
+    refreshAllUI(); renderIntegrations();
+    showToast(`${name} added — webhook URL is on its card`, 'success', { label: 'Test it', fn: () => testIntegration(row.id) });
+  } else {
+    crmState.integrations.push(Object.assign({ id: 'int_' + Date.now() }, data));
+    refreshAllUI(); renderIntegrations();
+  }
+}
+
+async function deleteIntegration(id) {
+  const i = findIntegration(id);
+  if (!i) return;
+  const ok = await confirmDialog('Remove integration?', `"${i.name}" will be removed. Leads already attributed to it stay in your pipeline.`);
+  if (!ok) return;
+  const idx = crmState.integrations.findIndex(x => x.id === id);
+  crmState.integrations.splice(idx, 1);
+  refreshAllUI();
+  renderIntegrations();
+  if (cloudReady()) { beginWrite(); try { await apiCall('DELETE', '/integrations/' + id); endWrite(); } catch (err) { endWrite(err); } }
+  showToast(`${i.name} removed`, 'info', { label: 'Undo', fn: async () => {
+    if (cloudReady()) {
+      try { const { integration } = await apiCall('POST', '/integrations', i); crmState.integrations.splice(idx, 0, integration); } catch { /* undo failed */ }
+    } else { crmState.integrations.splice(idx, 0, i); }
+    refreshAllUI(); renderIntegrations();
+  }});
+}
+
+function regenerateKey() {
+  const hex = Array.from({length:10}, () => Math.floor(Math.random()*16).toString(16)).join('');
+  document.getElementById('int-key').value = 'omni_live_' + hex;
+  showToast('New key generated — save to keep it', 'info');
+}
+
+function testIntegration(id) {
+  const i = findIntegration(id);
+  if (!i) return;
+  if (!i.on) { showToast(`${i.name} is inactive — connect it first`, 'error'); return; }
+  showToast(`Handshake with ${i.name}…`, 'info');
+  setTimeout(() => {
+    const lead = makeInboundLead(i);
+    crmState.leads.unshift(lead);
+    refreshAllUI();
+    cloudInsertLeads([lead]).then(saved => {
+      refreshAllUI();
+      renderIntegrations();
+      const lid = (saved[0] && saved[0].id) || lead.id;
+      showToast(`${i.name} OK — test lead received`, 'success', { label: 'View', fn: () => { switchTab('pipeline'); editLead(lid); } });
+    });
+  }, 700);
+}
+
+function makeInboundLead(integration) {
+  const names = ['Lucas Scott','Chloe Bennett','Ethan Brooks','Nadia Perera','Gabriel Vance','Mia Fernando','Omar Haddad','Ruth Silva'];
+  const companies = ['Apex Media','Synergy Labs','Vertex AI','Starlight Studios','Nexus Corp','Harbour Logistics'];
+  const name = names[Math.floor(Math.random()*names.length)];
+  return {
+    id: 'tmp_' + Date.now(),
+    name,
+    company: companies[Math.floor(Math.random()*companies.length)],
+    email: name.toLowerCase().replace(/\s+/g,'.') + '@clientcorp.io',
+    phone: '',
+    value: Math.floor(Math.random()*18000) + 4000,
+    stage: (integration.defaultStage && crmState.stages.includes(integration.defaultStage)) ? integration.defaultStage : crmState.stages[0],
+    source: integration.sourceTag || integration.name,
+    assignee: integration.defaultOwner || crmState.salesReps[Math.floor(Math.random()*crmState.salesReps.length)] || 'Unassigned',
+    notes: 'Received via ' + integration.name + ' (' + integration.method + ')',
+    createdAt: Date.now()
+  };
+}
+
+/* ---------------- Forms & QR ---------------- */
+function formUrl() {
+  const slug = (crmState.form.title || 'form').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  return 'https://omnileads.io/f/' + (slug || 'custom-form');
+}
+
+function initQRCode() {
+  const c = document.getElementById('qrcode-container');
+  c.innerHTML = '';
+  if (typeof QRCode === 'undefined') {
+    // The QR library did not load; everything else still works.
+    c.innerHTML = '<p class="text-[11px] text-slate-400 px-6 py-10 text-center">QR preview unavailable offline.<br>The form link below still works.</p>';
+    qrCodeInstance = null;
+  } else {
+    try {
+      qrCodeInstance = new QRCode(c, { text: formUrl(), width: 170, height: 170, colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+    } catch (err) {
+      console.error('QR init failed:', err);
+      qrCodeInstance = null;
+    }
+  }
+  updateQRCode();
+  renderFormBuilderFields();
+}
+
+function updateQRCode() {
+  crmState.form.title = document.getElementById('qr-form-title').value;
+  const url = formUrl();
+  document.getElementById('qr-display-title').innerText = crmState.form.title || 'Lead form';
+  document.getElementById('qr-form-url').value = url;
+  if (qrCodeInstance) { qrCodeInstance.clear(); qrCodeInstance.makeCode(url); }
+  save();
+}
+
+function persistFormSettings() {
+  crmState.form.source = document.getElementById('qr-form-source').value;
+  crmState.form.assignee = document.getElementById('qr-form-assignee').value;
+  save();
+}
+
+function renderFormBuilderFields() {
+  const list = document.getElementById('form-builder-fields');
+  if (!list) return;
+  list.innerHTML = crmState.form.fields.map((field, i) => {
+    const required = ['Full Name','Email Address'].includes(field);
+    return `<li class="flex items-center justify-between bg-white dark:bg-slate-800 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm text-xs">
+      <span class="font-medium text-slate-700 dark:text-slate-200">${esc(field)}${required ? ' <span class="text-rose-500">*</span>' : ''}</span>
+      ${required ? '<span class="text-[10px] text-slate-400">Required</span>' : `<button onclick="removeFormField(${i})" class="text-slate-400 hover:text-rose-600 p-1"><i class="fa-solid fa-xmark"></i></button>`}
+    </li>`;
+  }).join('');
+}
+
+function addFormField(field) {
+  if (field && !crmState.form.fields.includes(field)) { crmState.form.fields.push(field); save(); renderFormBuilderFields(); }
+  document.getElementById('add-field-select').value = '';
+}
+function removeFormField(i) { crmState.form.fields.splice(i,1); save(); renderFormBuilderFields(); }
+
+function loadFormTemplate(type) {
+  const t = {
+    general:      { title: 'General Capture Form',     fields: ['Full Name','Email Address','Company'] },
+    consultation: { title: 'VIP Consultation Request', fields: ['Full Name','Email Address','Company','Budget','Comments'] },
+    event:        { title: 'Event Registration',       fields: ['Full Name','Email Address','Phone Number'] },
+    blank:        { title: 'Custom Capture Form',      fields: ['Full Name','Email Address'] }
+  }[type];
+  crmState.form.title = t.title;
+  crmState.form.fields = t.fields;
+  document.getElementById('qr-form-title').value = t.title;
+  updateQRCode();
+  renderFormBuilderFields();
+  showToast(`Loaded "${t.title}"`, 'info');
+}
+
+function downloadQRCode() {
+  const img = document.querySelector('#qrcode-container img') || document.querySelector('#qrcode-container canvas');
+  if (!img) { showToast(typeof QRCode === 'undefined' ? 'QR library unavailable — check your connection' : 'QR code not ready yet', 'error'); return; }
+  const a = document.createElement('a');
+  a.download = 'lead-form-qr.png';
+  a.href = img.tagName === 'IMG' ? img.src : img.toDataURL('image/png');
+  a.click();
+  showToast('QR code downloaded', 'success');
+}
+
+function copyFormUrl() { copyText(formUrl(), 'Form link copied'); }
+
+function copyText(text, msg) {
+  const done = () => showToast(msg, 'success');
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  const t = document.createElement('textarea');
+  t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+  document.body.appendChild(t); t.select();
+  try { document.execCommand('copy'); done(); } catch (e) { showToast('Copy failed — select it manually', 'error'); }
+  document.body.removeChild(t);
+}
+
+const FIELD_META = {
+  'Full Name':     { id:'pub-name',    type:'text',     ph:'Jane Doe',            req:true },
+  'Email Address': { id:'pub-email',   type:'email',    ph:'jane@company.com',    req:true },
+  'Company':       { id:'pub-company', type:'text',     ph:'Company name',        req:false },
+  'Phone Number':  { id:'pub-phone',   type:'tel',      ph:'+94 77 000 0000',     req:false },
+  'Company Size':  { id:'pub-size',    type:'text',     ph:'e.g. 50–200',         req:false },
+  'Budget':        { id:'pub-value',   type:'number',   ph:'7500',                req:false },
+  'Comments':      { id:'pub-notes',   type:'textarea', ph:'What do you need?',   req:false }
+};
+
+function openLiveCaptureForm() {
+  document.getElementById('public-form-header-title').innerText = crmState.form.title || 'Lead form';
+  const box = document.getElementById('public-form-fields');
+  box.innerHTML = crmState.form.fields.map(f => {
+    const m = FIELD_META[f] || { id: 'pub-' + f.toLowerCase().replace(/\W+/g,'-'), type: 'text', ph: f, req: false };
+    const cls = 'w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500';
+    const input = m.type === 'textarea'
+      ? `<textarea id="${m.id}" rows="2" placeholder="${esc(m.ph)}" class="${cls}"></textarea>`
+      : `<input type="${m.type}" id="${m.id}" ${m.req ? 'required' : ''} placeholder="${esc(m.ph)}" ${m.type === 'number' ? 'value="7500"' : ''} class="${cls}">`;
+    return `<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">${esc(f)}${m.req ? ' *' : ''}</label>${input}</div>`;
+  }).join('');
+  showModal('public-form-modal');
+}
+function closePublicForm() { hideModal('public-form-modal'); }
+
+function submitPublicFormLead(e) {
+  e.preventDefault();
+  const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const name = val('pub-name') || 'Unnamed lead';
+  const lead = {
+    id: 'tmp_' + Date.now(),
+    name,
+    company: val('pub-company'),
+    email: val('pub-email'),
+    phone: val('pub-phone'),
+    value: Number(val('pub-value')) || 0,
+    stage: crmState.stages[0],
+    source: crmState.form.source || 'QR Code Campaign',
+    assignee: crmState.form.assignee || crmState.salesReps[0] || 'Unassigned',
+    notes: val('pub-notes'),
+    createdAt: Date.now()
+  };
+  crmState.leads.unshift(lead);
+  closePublicForm();
+  refreshAllUI();
+  cloudInsertLeads([lead]).then(saved => {
+    refreshAllUI();
+    const lid = (saved[0] && saved[0].id) || lead.id;
+    showToast(`Captured via form: ${name}`, 'success', { label: 'View', fn: () => { switchTab('pipeline'); editLead(lid); } });
+  });
+}
+
+/* ---------------- Settings ---------------- */
+function updateCRMName() {
+  const v = document.getElementById('setting-crm-name').value.trim() || 'OmniLeads';
+  crmState.crmName = v;
+  document.getElementById('sidebar-crm-name').innerText = v;
+  document.title = v + ' — Marketing CRM & Pipeline';
+  save();
+}
+function updateCurrency() {
+  crmState.currency = document.getElementById('setting-currency').value;
+  refreshAllUI();
+  showToast('Currency set to ' + crmState.currency, 'success');
+}
+
+function renderSettingsUI() {
+  const sd = document.getElementById('settings-stages-list');
+  sd.innerHTML = crmState.stages.map((st, i) => `
+    <div class="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+      <div class="flex flex-col">
+        <button onclick="moveStage(${i},-1)" ${i===0?'disabled':''} class="text-slate-300 hover:text-brand-600 disabled:opacity-30 text-[9px] leading-none p-0.5"><i class="fa-solid fa-chevron-up"></i></button>
+        <button onclick="moveStage(${i},1)" ${i===crmState.stages.length-1?'disabled':''} class="text-slate-300 hover:text-brand-600 disabled:opacity-30 text-[9px] leading-none p-0.5"><i class="fa-solid fa-chevron-down"></i></button>
+      </div>
+      <input value="${esc(st)}" onchange="renameStage(${i}, this.value)" class="flex-1 bg-transparent text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 rounded px-1 py-1">
+      <span class="text-[10px] text-slate-400">${crmState.leads.filter(l => l.stage === st).length}</span>
+      ${crmState.stages.length > 2 ? `<button onclick="removePipelineStage('${esc(st).replace(/'/g,"\\'")}')" class="text-slate-400 hover:text-rose-600 p-1"><i class="fa-solid fa-xmark"></i></button>` : ''}
+    </div>`).join('');
+
+  const rd = document.getElementById('settings-reps-list');
+  rd.innerHTML = crmState.salesReps.map((rep, i) => `
+    <div class="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+      <span class="w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-200 text-[9px] font-bold flex items-center justify-center">${initials(rep)}</span>
+      <input value="${esc(rep)}" onchange="renameRep(${i}, this.value)" class="flex-1 bg-transparent text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 rounded px-1 py-1">
+      <span class="text-[10px] text-slate-400">${crmState.leads.filter(l => l.assignee === rep).length}</span>
+      ${crmState.salesReps.length > 1 ? `<button onclick="removeSalesRep('${esc(rep).replace(/'/g,"\\'")}')" class="text-slate-400 hover:text-rose-600 p-1"><i class="fa-solid fa-xmark"></i></button>` : ''}
+    </div>`).join('');
+
+  // Who can actually sign in to this workspace
+  const md = document.getElementById('members-list');
+  if (md) {
+    const members = crmState.members || [];
+    md.innerHTML = members.length
+      ? members.map(m => `
+        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+          <span class="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-[9px] font-bold flex items-center justify-center">${initials((m.email||'?').split('@')[0])}</span>
+          <span class="flex-1 text-xs font-semibold truncate">${esc(m.email || 'Unknown')}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 font-semibold">${esc(m.role)}</span>
+        </div>`).join('')
+      : '<p class="text-xs text-slate-400 italic">No members loaded.</p>';
+  }
+}
+
+function addPipelineStage() {
+  const input = document.getElementById('new-stage-input');
+  const v = input.value.trim();
+  if (!v) return;
+  if (crmState.stages.includes(v)) { showToast('That stage already exists', 'error'); return; }
+  crmState.stages.push(v);
+  input.value = '';
+  refreshAllUI();
+  showToast(`Stage "${v}" added`, 'success');
+}
+function renameStage(i, value) {
+  const v = value.trim();
+  const old = crmState.stages[i];
+  if (!v || v === old) { renderSettingsUI(); return; }
+  if (crmState.stages.includes(v)) { showToast('That stage already exists', 'error'); renderSettingsUI(); return; }
+  crmState.stages[i] = v;
+  crmState.leads.forEach(l => { if (l.stage === old) l.stage = v; });
+  refreshAllUI();
+  showToast(`Renamed to "${v}"`, 'success');
+}
+function moveStage(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= crmState.stages.length) return;
+  [crmState.stages[i], crmState.stages[j]] = [crmState.stages[j], crmState.stages[i]];
+  refreshAllUI();
+}
+async function removePipelineStage(stage) {
+  if (crmState.stages.length <= 2) { showToast('Keep at least two stages', 'error'); return; }
+  const count = crmState.leads.filter(l => l.stage === stage).length;
+  const ok = await confirmDialog('Remove stage?', count ? `${count} lead${count===1?'':'s'} will move to "${crmState.stages[0] === stage ? crmState.stages[1] : crmState.stages[0]}".` : 'This stage is empty.');
+  if (!ok) return;
+  crmState.stages = crmState.stages.filter(s => s !== stage);
+  crmState.leads.forEach(l => { if (l.stage === stage) l.stage = crmState.stages[0]; });
+  refreshAllUI();
+  showToast(`Stage "${stage}" removed`, 'info');
+}
+
+function addSalesRep() {
+  const input = document.getElementById('new-rep-input');
+  const v = input.value.trim();
+  if (!v) return;
+  if (crmState.salesReps.includes(v)) { showToast('Already on the team', 'error'); return; }
+  crmState.salesReps.push(v);
+  input.value = '';
+  refreshAllUI();
+  showToast(`${v} added`, 'success');
+}
+function renameRep(i, value) {
+  const v = value.trim();
+  const old = crmState.salesReps[i];
+  if (!v || v === old) { renderSettingsUI(); return; }
+  crmState.salesReps[i] = v;
+  crmState.leads.forEach(l => { if (l.assignee === old) l.assignee = v; });
+  if (crmState.form.assignee === old) crmState.form.assignee = v;
+  refreshAllUI();
+}
+async function removeSalesRep(rep) {
+  if (crmState.salesReps.length <= 1) { showToast('Keep at least one team member', 'error'); return; }
+  const count = crmState.leads.filter(l => l.assignee === rep).length;
+  const ok = await confirmDialog('Remove team member?', count ? `${count} lead${count===1?'':'s'} will become unassigned.` : 'They have no leads assigned.');
+  if (!ok) return;
+  crmState.salesReps = crmState.salesReps.filter(r => r !== rep);
+  crmState.leads.forEach(l => { if (l.assignee === rep) l.assignee = 'Unassigned'; });
+  refreshAllUI();
+  showToast(`${rep} removed`, 'info');
+}
+
+/* Pull a fresh copy from the server, discarding nothing — the server is the truth */
+async function reloadFromCloud() {
+  if (!cloudReady()) { showToast('Not signed in', 'error'); return; }
+  const ok = await loadAll();
+  if (!ok) return;
+  applyLoadedState();
+  renderSettingsUI();
+  showToast('Reloaded from server', 'success');
+}
+
+/* ---------------- Modals, theme, toasts ---------------- */
+function showModal(id) { const m = document.getElementById(id); m.classList.remove('hidden'); m.classList.add('flex'); }
+function hideModal(id) { const m = document.getElementById(id); m.classList.add('hidden'); m.classList.remove('flex'); }
+
+function confirmDialog(title, text) {
+  document.getElementById('confirm-title').innerText = title;
+  document.getElementById('confirm-text').innerText = text || '';
+  showModal('confirm-modal');
+  return new Promise(res => { confirmResolver = res; });
+}
+function resolveConfirm(v) {
+  hideModal('confirm-modal');
+  if (confirmResolver) { confirmResolver(v); confirmResolver = null; }
+}
+
+function toggleDarkMode() {
+  const dark = document.documentElement.classList.toggle('dark');
+  crmState.theme = dark ? 'dark' : 'light';
+  save();
+  syncThemeIcon();
+}
+function syncThemeIcon() {
+  const dark = document.documentElement.classList.contains('dark');
+  document.getElementById('theme-icon').className = dark ? 'fa-solid fa-sun text-sm text-amber-400' : 'fa-solid fa-moon text-sm text-slate-500';
+}
+
+function showToast(message, type = 'success', action) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  let tone = 'bg-slate-900 text-white border border-slate-700';
+  if (type === 'success') tone = 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20';
+  if (type === 'error') tone = 'bg-rose-600 text-white shadow-lg shadow-rose-500/20';
+  const icon = type === 'error' ? 'fa-circle-exclamation' : type === 'info' ? 'fa-circle-info' : 'fa-circle-check';
+  toast.className = `toast-animate px-4 py-3 rounded-xl text-xs font-medium flex items-center gap-3 ${tone}`;
+  toast.innerHTML = `<i class="fa-solid ${icon} text-sm shrink-0"></i><span>${esc(message)}</span>`;
+  if (action) {
+    const btn = document.createElement('button');
+    btn.className = 'ml-1 underline font-bold whitespace-nowrap';
+    btn.innerText = action.label;
+    btn.onclick = () => { action.fn(); toast.remove(); };
+    toast.appendChild(btn);
+  }
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = 'all .25s ease-out';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(1rem)';
+    setTimeout(() => toast.remove(), 250);
+  }, action ? 6000 : 3200);
+}
+</script>
+</body>
+</html>
