@@ -1,5 +1,6 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -40,9 +41,19 @@ app.use(express.static(join(__dirname, 'public'), {
 }));
 
 // Anything else is the single-page app.
+const INDEX = join(__dirname, 'public', 'index.html');
+
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/hook')) return next();
-  res.sendFile(join(__dirname, 'public', 'index.html'));
+  // Without this the deploy looks healthy while every request throws ENOENT,
+  // which says nothing about the actual cause.
+  if (!existsSync(INDEX)) {
+    return res.status(500).type('text/plain').send(
+      'public/index.html is missing from this deployment, so there is no page to serve.\n' +
+      'The server and database are fine. Check that the public/ folder was committed.\n'
+    );
+  }
+  res.sendFile(INDEX);
 });
 
 app.use((req, res) => res.status(404).json({ error: 'not found' }));
@@ -60,6 +71,12 @@ async function main() {
   const server = app.listen(PORT, '0.0.0.0', () =>
     console.log(`[http] listening on 0.0.0.0:${PORT}`)
   );
+
+  // Say this once, at boot, rather than once per request forever.
+  if (!existsSync(INDEX)) {
+    console.error('[boot] NOT SERVABLE: public/index.html is missing — the front end was not deployed.');
+    console.error('[boot] The API and webhooks still work; every page request will return 500 until it is committed.');
+  }
 
   try {
     await waitForDb();
