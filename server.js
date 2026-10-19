@@ -20,7 +20,16 @@ const PORT = Number(process.env.PORT) || 3000;
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
-app.use(express.json({ limit: '20mb' }));                          // CSV imports can be chunky
+// Meta signs the exact bytes it sent, so the signature can only be checked
+// against the raw body — which the JSON parser would otherwise discard. Kept
+// only for /hook requests; holding a second copy of a 20MB CSV import would
+// be pure waste.
+app.use(express.json({
+  limit: '20mb',                                                   // CSV imports can be chunky
+  verify(req, _res, buf) {
+    if (req.url.startsWith('/hook') && buf?.length) req.rawBody = Buffer.from(buf);
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));     // form-encoded webhooks
 app.use(cookieParser());
 

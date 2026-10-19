@@ -9,7 +9,8 @@
     "dev": "node --env-file=.env server.js",
     "test:ai": "node --env-file=.env test-ai.js",
     "test:api": "node e2e-test.mjs",
-    "test:ui": "node browser-test.mjs"
+    "test:ui": "node browser-test.mjs",
+    "test:meta": "node meta-test.mjs"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",

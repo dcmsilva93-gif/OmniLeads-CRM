@@ -51,7 +51,10 @@ It needs one environment variable set at deploy time:
 |---|---|
 | `ROAR_API_KEY` | Your `roar_live_…` inference key |
 | `ROAR_MODEL` | Optional. Defaults to `claude-haiku-5-5`. `qwen3.8-27b-lk` is cheaper and served in Sri Lanka |
-| `META_VERIFY_TOKEN` | Optional. Only if you connect Meta Lead Ads |
+| `META_VERIFY_TOKEN` | For Meta Lead Ads — see below |
+| `META_APP_SECRET` | For Meta Lead Ads — see below |
+| `META_PAGE_ACCESS_TOKEN` | For Meta Lead Ads — see below |
+| `META_GRAPH_VERSION` | Optional. Defaults to `v26.0` |
 
 `DATABASE_URL` and `PORT` are injected by Roar — do not set them yourself.
 
@@ -99,7 +102,30 @@ curl -X POST "https://your-app.roar.../hook/<token>" \
 
 The lead appears in your pipeline immediately, on every open browser.
 
-**What the receiver handles.** Google's `user_column_data`, Meta's and TikTok's `field_data`, Typeform answers, plain JSON, and ordinary form posts. It maps name, email, phone, company, budget and message however they're labelled; assembles `first_name` + `last_name` into a full name; reads money the way people write it (`Rs. 45,000`, `$1,234.56`, `1.234,56`); and ignores a repeat delivery of the same email within an hour so platform retries don't duplicate. A `GET` on the URL reports whether the connector is live without creating anything.
+### Meta Lead Ads
+
+Meta is handled properly rather than generically: deliveries are cryptographically verified, and each lead's answers are fetched from the Graph API. It needs three secrets, all **server-side only** — the connector's card in the app shows no token field, and nothing sensitive is kept in the browser or the database.
+
+| Variable | Where to get it |
+|---|---|
+| `META_VERIFY_TOKEN` | A long random string you invent. Paste the identical value into Meta as the *Verify Token* |
+| `META_APP_SECRET` | Meta app → **Settings → Basic → App secret** |
+| `META_PAGE_ACCESS_TOKEN` | A **Page** access token carrying the `leads_retrieval` permission |
+
+Then in Meta: **App → Webhooks → Page → subscribe to `leadgen`**, with the Callback URL set to the Meta connector's webhook URL from its card, and the Verify Token matching `META_VERIFY_TOKEN`. Finally subscribe your Page to the app.
+
+**How a delivery is handled.**
+
+1. `GET` with `hub.mode=subscribe` and a matching verify token returns the `hub.challenge` as bare plain text; anything else gets a 403.
+2. `POST` is checked against `X-Hub-Signature-256` — HMAC-SHA256 of the **raw** request bytes keyed with `META_APP_SECRET`, compared in constant time. A bad or missing signature is rejected with 401 and recorded on the connector.
+3. A verified delivery is acknowledged with **200 immediately**, before any work. Meta redelivers anything slow or non-200, so the lead fetch happens after the response.
+4. For each `entry[].changes[]` where `field === "leadgen"`, the lead is fetched from `GET /{version}/{leadgen_id}?fields=field_data,created_time,ad_id,ad_name,campaign_name,form_id`.
+5. `field_data` becomes the lead: `full_name` (or `first_name` + `last_name`), `email`, `phone_number`, `company_name`. Every custom question is preserved verbatim in the notes, along with the ad name, campaign and form id.
+6. It is saved with source **Meta Ads**, stage **New**, and Meta's own `created_time`, keyed on `leadgen_id` with a unique index — so a redelivery is a no-op, not a second lead. Only genuinely new leads increment the attributed count, and a successful delivery marks the connector Active.
+
+**When something breaks**, the reason is written to the server logs *and* shown on the connector's card: an expired token names `META_PAGE_ACCESS_TOKEN` as the thing to replace, a permissions failure mentions `leads_retrieval`. The card clears itself after the next successful delivery. Access tokens never appear in any log line or error message.
+
+**What the generic receiver handles** for every other connector: Google's `user_column_data`, Meta-shaped `field_data`, TikTok, Typeform answers, plain JSON, and ordinary form posts. It maps name, email, phone, company, budget and message however they're labelled; assembles `first_name` + `last_name` into a full name; reads money the way people write it (`Rs. 45,000`, `$1,234.56`, `1.234,56`); and ignores a repeat delivery of the same email within an hour so platform retries don't duplicate. A `GET` on the URL reports whether the connector is live without creating anything.
 
 ---
 
@@ -135,9 +161,15 @@ Tests, against a running server on port 3456:
 
 ```bash
 npm run test:api     # 92 API and isolation tests
+npm run test:meta    # 63 Meta webhook tests, against a stub Graph API
 npm run test:ui      # 33 browser tests (needs: npm i -D playwright)
 npm run test:ai      # one chat request through the Roar gateway
 ```
+
+The Meta suite starts its own stub Graph API, so it needs no Meta credentials —
+run the server with `META_VERIFY_TOKEN=test-verify-token`,
+`META_APP_SECRET=test-app-secret`, `META_PAGE_ACCESS_TOKEN=test-page-token` and
+`META_GRAPH_BASE=http://127.0.0.1:3470`.
 
 ---
 
@@ -159,7 +191,7 @@ npm run test:ai      # one chat request through the Roar gateway
 
 ## What this still doesn't do
 
-1. **Conversion postbacks are simulated.** Moving a lead to Won shows the notifications a real integration would produce, but nothing is sent to Meta or Google. Real postbacks need server-side calls with your ad accounts' credentials.
+1. **Conversion postbacks are still simulated.** Lead *ingest* from Meta is real, but the reverse direction is not: moving a lead to Won shows the notifications a real integration would produce and sends nothing to Meta or Google. That needs the Conversions API with your ad account credentials.
 
 2. **Private sheets need OAuth.** Server-side fetching removed the CORS problem, not the login one. A sheet behind a Google or Microsoft sign-in still needs an OAuth flow.
 

@@ -749,13 +749,28 @@ if (window.tailwind) tailwind.config = {
         <input type="text" id="int-endpoint" placeholder="https://…" class="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
       </div>
 
-      <div>
+      <div id="int-key-block">
         <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">API key / token</label>
         <div class="flex gap-2">
           <input type="text" id="int-key" placeholder="Paste a key, or generate one" class="flex-1 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500">
           <button type="button" onclick="regenerateKey()" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl whitespace-nowrap">Generate</button>
         </div>
         <p class="text-[11px] text-slate-400 mt-1">Stored in this browser only — don't put a production secret here.</p>
+      </div>
+
+      <div id="int-server-secrets" class="hidden p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+        <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
+          <i class="fa-solid fa-lock mr-1 text-emerald-500"></i> Credentials are held on the server
+        </p>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+          This connector reads its secrets from the app's environment variables, so nothing sensitive is stored in your browser or in this database. Set them under <strong>Environment</strong> in Roar:
+        </p>
+        <ul class="mt-2 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+          <li><code class="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">META_VERIFY_TOKEN</code> — any long random string; paste the same one into Meta</li>
+          <li><code class="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">META_APP_SECRET</code> — Meta app → Settings → Basic → App secret</li>
+          <li><code class="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">META_PAGE_ACCESS_TOKEN</code> — a page token with <em>leads_retrieval</em></li>
+          <li><code class="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">META_GRAPH_VERSION</code> — optional, defaults to v26.0</li>
+        </ul>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-700">
@@ -2213,6 +2228,9 @@ function renderIntegrations() {
           <code class="block bg-slate-200 dark:bg-slate-800 px-2 py-1.5 rounded text-[10px] break-all leading-relaxed">${esc(hook)}</code>
         </div>` : `<p class="truncate"><code class="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[11px]">${esc(i.endpoint || 'No endpoint')}</code></p>`}
         <p class="text-[11px]">${crmState.leads.filter(l => l.source === i.sourceTag).length} leads attributed${i.receivedCount ? ` · ${i.receivedCount} received via webhook` : ''}</p>
+        ${i.lastError ? `<div class="mt-1.5 p-2 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/60">
+          <p class="text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed"><i class="fa-solid fa-triangle-exclamation mr-1"></i><span class="font-semibold">Last error${i.lastErrorAt ? ` · ${new Date(i.lastErrorAt).toLocaleString()}` : ''}:</span> ${esc(i.lastError)}</p>
+        </div>` : ''}
       </div>
 
       <div class="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-700 gap-2">
@@ -2255,6 +2273,7 @@ function openIntegrationModal(id) {
   document.getElementById('int-active').checked = i ? !!i.on : true;
   if (!i) applySystemPreset(true);
   syncIntegrationIcon();
+  reflectSecretStorage();
   showModal('integration-modal');
   setTimeout(() => document.getElementById('int-name').focus(), 50);
 }
@@ -2271,6 +2290,15 @@ function applySystemPreset(force) {
   if (force || !methodEl.value) methodEl.value = m.method;
   if (force || !epEl.value.trim()) epEl.value = 'https://api.omnileads.io/v1/hook/' + (slugify(nameEl.value || system) || 'custom');
   syncIntegrationIcon();
+  reflectSecretStorage();
+}
+
+/** Meta holds its secrets server-side, so it gets a notice instead of a key field. */
+function reflectSecretStorage() {
+  const serverHeld = document.getElementById('int-system').value === 'Meta Lead Ads';
+  document.getElementById('int-key-block').classList.toggle('hidden', serverHeld);
+  document.getElementById('int-server-secrets').classList.toggle('hidden', !serverHeld);
+  if (serverHeld) document.getElementById('int-key').value = '';
 }
 
 function syncIntegrationIcon() {

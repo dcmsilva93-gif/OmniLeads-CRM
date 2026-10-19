@@ -71,6 +71,17 @@ create index if not exists leads_workspace_idx on leads(workspace_id, created_at
 create index if not exists leads_stage_idx     on leads(workspace_id, stage);
 create index if not exists leads_email_idx     on leads(workspace_id, lower(email));
 
+-- Meta's leadgen_id, when the lead came from Meta Lead Ads. Added separately
+-- so existing deployments pick it up on their next boot.
+alter table leads add column if not exists leadgen_id text;
+
+-- Meta retries a webhook until it gets a 200, and may deliver the same event
+-- more than once. A partial unique index makes the second insert a no-op
+-- rather than a duplicate lead; NULL is left free for every other source,
+-- since Postgres does not treat NULLs as equal.
+create unique index if not exists leads_leadgen_uniq
+  on leads(workspace_id, leadgen_id) where leadgen_id is not null;
+
 -- ---------------------------------------------------------------------
 -- Integrations. webhook_token is the shared secret in the public URL.
 -- ---------------------------------------------------------------------
@@ -94,6 +105,11 @@ create table if not exists integrations (
 );
 create index if not exists integrations_workspace_idx on integrations(workspace_id);
 create index if not exists integrations_token_idx     on integrations(webhook_token);
+
+-- The most recent failure for this connector, shown on its card so an expired
+-- token or a permission problem is visible without reading server logs.
+alter table integrations add column if not exists last_error    text;
+alter table integrations add column if not exists last_error_at timestamptz;
 
 -- ---------------------------------------------------------------------
 -- Linked spreadsheets

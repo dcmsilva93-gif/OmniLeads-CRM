@@ -21,7 +21,9 @@ const toIntegration = r => ({
   endpoint: r.endpoint, apiKey: r.api_key, sourceTag: r.source_tag,
   defaultStage: r.default_stage, defaultOwner: r.default_owner, on: r.active,
   webhookToken: r.webhook_token, receivedCount: r.received_count,
-  lastReceived: r.last_received ? new Date(r.last_received).getTime() : null
+  lastReceived: r.last_received ? new Date(r.last_received).getTime() : null,
+  lastError: r.last_error || null,
+  lastErrorAt: r.last_error_at ? new Date(r.last_error_at).getTime() : null
 });
 const toSheet = r => ({
   id: r.id, name: r.name, url: r.url, provider: r.provider,
@@ -199,18 +201,24 @@ api.delete('/leads', requireAuth, async (req, res, next) => {
 /* ===================================================================
    INTEGRATIONS
    =================================================================== */
-const intFields = b => ({
+const intFields = b => {
+  const system = str(b.system, 120) || 'Custom webhook / API';
+  return {
   name: str(b.name, 120).trim(),
-  system: str(b.system, 120) || 'Custom webhook / API',
+  system,
   descr: str(b.desc ?? b.descr, 300),
   method: str(b.method, 40) || 'Webhook',
   endpoint: str(b.endpoint, 500),
-  api_key: str(b.apiKey, 300),
+  // Meta's credentials live in server environment variables. Refusing to
+  // store one here means a crafted request cannot stash a secret in the
+  // database where the browser would read it back.
+  api_key: system === 'Meta Lead Ads' ? '' : str(b.apiKey, 300),
   source_tag: str(b.sourceTag, 120),
   default_stage: str(b.defaultStage, 80),
   default_owner: str(b.defaultOwner, 120),
   active: b.on !== false
-});
+  };
+};
 
 api.post('/integrations', requireAuth, async (req, res, next) => {
   try {
