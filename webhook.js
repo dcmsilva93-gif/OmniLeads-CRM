@@ -142,10 +142,23 @@ function resolveName(f) {
    rules apply: subscribe + matching token, or 403. A GET with no hub.*
    parameters is our own liveness check and is left as it was.            */
 hook.get('/:token', async (req, res) => {
-  const mode = req.query['hub.mode'];
-  const verifyToken = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
+  // Meta has sent these with dots and, in its reachability probe, with
+  // underscores as well. Accept either spelling.
+  const param = (...names) => {
+    for (const n of names) {
+      const v = req.query[n];
+      if (typeof v === 'string' && v !== '') return v;
+    }
+    return undefined;
+  };
+  const mode = param('hub.mode', 'hub_mode');
+  const verifyToken = param('hub.verify_token', 'hub_verify_token');
+  const challenge = param('hub.challenge', 'hub_challenge');
 
+  // Before the real challenge, Meta probes the URL with every hub parameter
+  // present but blank, and expects the endpoint to answer rather than reject.
+  // Treating "present" as "verifying" would fail that probe, so only a
+  // non-empty hub.mode counts as a verification attempt.
   if (mode !== undefined || verifyToken !== undefined || challenge !== undefined) {
     if (!META_VERIFY_TOKEN) {
       console.error('[meta] verification attempted but META_VERIFY_TOKEN is not set');

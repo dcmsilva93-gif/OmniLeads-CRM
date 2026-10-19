@@ -162,6 +162,22 @@ section('1. GET verification');
   r = await fetch(`${BASE}/hook/${genericToken}`);
   const j = await r.json();
   ok('bare GET still returns the liveness check', r.status === 200 && j.ok === true, j);
+
+  // The exact probe Meta sends before the real challenge: every parameter
+  // present but blank, in both spellings. It must not be treated as a failed
+  // verification, or Meta reports the callback URL as unvalidatable.
+  const probe = 'hub.mode=&hub.challenge=&hub.verify_token=&hub_mode=&hub_challenge=&hub_verify_token=';
+  r = await fetch(`${BASE}/hook/${metaToken}?${probe}`);
+  ok('Meta reachability probe answers 200, not 403', r.status === 200, r.status);
+
+  // Underscore spelling of a genuine verification still works.
+  r = await fetch(`${BASE}/hook/${metaToken}?hub_mode=subscribe&hub_verify_token=${VERIFY_TOKEN}&hub_challenge=UNDERSCORE1`);
+  const underscoreBody = await r.text();
+  ok('underscore spelling verifies too', r.status === 200 && underscoreBody === 'UNDERSCORE1', { status: r.status, body: underscoreBody });
+
+  // A blank verify token must never be accepted as a match.
+  r = await fetch(`${BASE}/hook/${metaToken}?hub.mode=subscribe&hub.verify_token=&hub.challenge=X`);
+  ok('blank verify token with real mode → 403', r.status === 403, r.status);
 }
 
 section('2. POST signature verification');
